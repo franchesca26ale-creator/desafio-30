@@ -342,76 +342,75 @@ def render_confetti():
 # FASE 1 · LOGIN Y LOBBY DE SALAS
 # =========================================================
 def render_login():
-    st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-    st.markdown("<div class='plaque-eyebrow'>🚪 Entrada al Casino</div>", unsafe_allow_html=True)
+    # Agregamos la bolita flotante gigante al centro
+    st.markdown(f"<div class='hero-ball-center'>{ball_widget(None, subtitle='META', size=220, animate=True)}</div>", unsafe_allow_html=True)
     
-    opcion = st.radio("¿Qué deseas hacer?", ["🪄 Crear una nueva sala", "🔑 Unirse a una sala existente"])
-    st.divider()
+    col_reglas, col_login = st.columns([1.2, 1], gap="large")
     
-    nombre = st.text_input("Tu nombre en el juego", placeholder="Ej. Fran", max_chars=15)
-    
-    if opcion == "🪄 Crear una nueva sala":
-        apuesta = st.number_input("Fijar apuesta inicial (fichas por jugador)", min_value=50, step=50, value=100)
-        if st.button("Crear Sala y Entrar", use_container_width=True):
-            if not nombre:
-                st.error("Por favor ingresa tu nombre.")
-                return
-            
-            # Generar código aleatorio
-            codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
-            
-            # Crear estructura en Firebase
-            ref = db.reference(f'salas/{codigo}')
-            ref.set({
-                'fase': 'lobby',
-                'apuesta': apuesta,
-                'jugadores': {
-                    nombre: {
-                        'is_host': True,
-                        'status': 'pendiente',
-                        'current_ball': None,
-                        'changes_left': CAMBIOS_MAXIMOS,
-                        'final_number': None
-                    }
-                }
-            })
-            
-            st.session_state.room_code = codigo
-            st.session_state.current_user = {"name": nombre, "is_host": True}
-            st.rerun()
-            
-    else:
-        codigo_ingresado = st.text_input("Código de la sala", placeholder="Ej. A7X2").upper()
-        if st.button("Verificar y Entrar", use_container_width=True):
-            if not nombre or not codigo_ingresado:
-                st.error("Faltan datos.")
-                return
-            
-            ref = db.reference(f'salas/{codigo_ingresado}')
-            sala_data = ref.get()
-            
-            if not sala_data:
-                st.error("La sala no existe. Revisa el código.")
-            elif nombre in sala_data.get('jugadores', {}):
-                st.error("Ese nombre ya está en uso en esta sala.")
-            elif sala_data.get('fase') != 'lobby':
-                st.error("La partida en esta sala ya comenzó. No puedes entrar ahora.")
-            else:
-                # Agregar jugador a la sala existente
-                ref.child(f'jugadores/{nombre}').set({
-                    'is_host': False,
-                    'status': 'pendiente',
-                    'current_ball': None,
-                    'changes_left': CAMBIOS_MAXIMOS,
-                    'final_number': None
+    with col_reglas:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown("<div class='plaque-eyebrow'>📜 REGLAMENTO OFICIAL DE LA MESA</div>", unsafe_allow_html=True)
+        st.markdown("""
+        <ul class='rules-list'>
+            <li><span class='rule-emoji'>🎯</span> <span><strong>El Objetivo:</strong> Acércate lo más posible al número 30.</span></li>
+            <li><span class='rule-emoji'>🎱</span> <span><strong>La Tómbola:</strong> Bolitas del 1 al 60 (sin reposición).</span></li>
+            <li><span class='rule-emoji'>🤫</span> <span><strong>Tu Turno:</strong> Juega en secreto. Saca una bolita y decide: ¿te plantas o pides otra?</span></li>
+            <li><span class='rule-emoji'>🔄</span> <span><strong>Los Cambios:</strong> Puedes cambiar de bolita máximo 2 veces, pero ojo: la bolita anterior se descarta para siempre.</span></li>
+            <li><span class='rule-emoji'>💰</span> <span><strong>Premios:</strong> El ganador se lleva el doble de su apuesta. ¡Si hay empate exacto, recupera tu dinero!</span></li>
+        </ul>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_login:
+        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
+        st.markdown("<div class='plaque-eyebrow'>🚪 ENTRADA AL CASINO</div>", unsafe_allow_html=True)
+        
+        opcion = st.radio("¿Cómo entras a la mesa?", ["🪄 Anfitrión — Crear sala", "🎮 Jugador — Unirse a sala"])
+        st.divider()
+        
+        nombre = st.text_input("Tu nombre", placeholder="Ej. Fran", max_chars=15)
+        
+        if "Anfitrión" in opcion:
+            apuesta = st.number_input("Fijar apuesta (fichas)", min_value=50, step=50, value=100)
+            if st.button("Entrar al Casino", use_container_width=True):
+                if not nombre:
+                    st.error("Ingresa tu nombre para sentarte en la mesa.")
+                    return
+                
+                codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                ref = db.reference(f'salas/{codigo}')
+                ref.set({
+                    'fase': 'lobby', 'apuesta': apuesta,
+                    'jugadores': {nombre: {'is_host': True, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None}}
                 })
-                
-                st.session_state.room_code = codigo_ingresado
-                st.session_state.current_user = {"name": nombre, "is_host": False}
+                st.session_state.room_code = codigo
+                st.session_state.current_user = {"name": nombre, "is_host": True}
                 st.rerun()
+        else:
+            codigo_ingresado = st.text_input("Código de la sala", placeholder="Ej. A7X2").upper()
+            if st.button("Entrar al Casino", use_container_width=True):
+                if not nombre or not codigo_ingresado:
+                    st.error("Faltan datos.")
+                    return
                 
-    st.markdown("</div>", unsafe_allow_html=True)
-
+                ref = db.reference(f'salas/{codigo_ingresado}')
+                sala_data = ref.get()
+                
+                if not sala_data:
+                    st.error("La sala no existe.")
+                elif nombre in sala_data.get('jugadores', {}):
+                    st.error("Ese nombre ya está en uso.")
+                elif sala_data.get('fase') != 'lobby':
+                    st.error("La partida ya comenzó.")
+                else:
+                    ref.child(f'jugadores/{nombre}').set({
+                        'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
+                    })
+                    st.session_state.room_code = codigo_ingresado
+                    st.session_state.current_user = {"name": nombre, "is_host": False}
+                    st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        
 def render_waiting_room():
     sincronizar_datos()
     usuario = st.session_state.current_user
