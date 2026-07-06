@@ -333,38 +333,49 @@ def render_login():
     col1, col2 = st.columns(2, gap="large")
     
     with col1:
-        # Iniciamos el panel y el header inmediatamente sin nada entre medio
         st.markdown("<div class='action-panel'><div class='panel-header'>🏠 CREAR SALA</div>", unsafe_allow_html=True)
-        
-        # Ahora el contenido va justo después
         nombre_host = st.text_input("TU NOMBRE", placeholder="Ej: Fran", key="host_name")
         apuesta = st.number_input("APUESTA OBLIGATORIA", min_value=1000, step=1000, value=2000)
         
         if st.button("CREAR SALA ➔", use_container_width=True, key="btn_crear_sala"):
-            # ... (tu lógica de creación de sala) ...
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True) # Cerramos el panel aquí
-
-    with col2:
-        # Mismo procedimiento para el panel de la derecha
-        st.markdown("<div class='action-panel'><div class='panel-header'>🚪 UNIRSE A SALA</div>", unsafe_allow_html=True)
-        
-        nombre_jugador = st.text_input("TU NOMBRE", placeholder="Ej: María", key="player_name")
-        codigo_ingresado = st.text_input("CÓDIGO DE SALA (4 LETRAS)", placeholder="A B C D").upper()
-        
-       if st.button("UNIRSE ➔", use_container_width=True, key="btn_unirse_sala"):
             if not nombre_host:
                 st.error("Ingresa tu nombre.")
             else:
-                # Tu lógica de Firebase aquí...
                 codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
-                # ...
+                ref = db.reference(f'salas/{codigo}')
+                ref.set({
+                    'fase': 'lobby', 'apuesta': apuesta,
+                    'jugadores': {nombre_host: {'is_host': True, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None}}
+                })
+                st.session_state.room_code = codigo
+                st.session_state.current_user = {"name": nombre_host, "is_host": True}
                 st.rerun()
-        
-        # EL CIERRE DEL DIV VA AQUÍ, DESPUÉS DEL BOTÓN
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div></div>", unsafe_allow_html=True)
 
-    # Las reglas quedan debajo de todo el bloque principal
+    with col2:
+        st.markdown("<div class='action-panel'><div class='panel-header'>🚪 UNIRSE A SALA</div>", unsafe_allow_html=True)
+        nombre_jugador = st.text_input("TU NOMBRE", placeholder="Ej: María", key="player_name")
+        codigo_ingresado = st.text_input("CÓDIGO DE SALA (4 LETRAS)", placeholder="A B C D").upper()
+        
+        if st.button("UNIRSE ➔", use_container_width=True, key="btn_unirse_sala"):
+            if not nombre_jugador or not codigo_ingresado:
+                st.error("Faltan datos.")
+            else:
+                ref = db.reference(f'salas/{codigo_ingresado}')
+                sala_data = ref.get()
+                if not sala_data:
+                    st.error("La sala no existe.")
+                elif nombre_jugador in sala_data.get('jugadores', {}):
+                    st.error("Ese nombre ya está en uso.")
+                else:
+                    ref.child(f'jugadores/{nombre_jugador}').set({
+                        'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
+                    })
+                    st.session_state.room_code = codigo_ingresado
+                    st.session_state.current_user = {"name": nombre_jugador, 'is_host': False}
+                    st.rerun()
+        st.markdown("</div></div>", unsafe_allow_html=True)
+
     st.markdown("""
     <div class='rules-container'>
         <div class='rules-title'>📜 Reglamento Oficial de la Mesa</div>
