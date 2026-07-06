@@ -48,129 +48,116 @@ CAMBIOS_MAXIMOS = 2
 # ESTILOS — CSS INYECTADO
 # =========================================================
 CSS_STYLES = """
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Manrope:wght@400;500;600;700;800&family=Orbitron:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
 
 :root {
-    --bg-black: #06070b;
-    --glass: rgba(16, 20, 28, 0.55);
-    --glass-border: rgba(212, 175, 55, 0.22);
+    --bg-deep: #13111c;
+    --panel-bg: #1a1825;
     --gold: #d4af37;
-    --gold-bright: #f6e27a;
-    --ruby: #e6394f;
-    --emerald: #1fae7a;
-    --ink: #f5f1e6;
-    --muted: #9aa4b8;
+    --gold-bright: #ffd700;
+    --gold-glow: rgba(212, 175, 55, 0.4);
+    --text-main: #e2e2e2;
+    --text-muted: #8b8994;
 }
 
 html, body, .stApp {
-    background:
-        radial-gradient(1000px 600px at 12% 0%, rgba(212,175,55,0.07), transparent 60%),
-        radial-gradient(1000px 700px at 88% 100%, rgba(31,174,122,0.10), transparent 60%),
-        linear-gradient(180deg, #06070b 0%, #0a0d14 50%, #070907 100%);
-    color: var(--ink);
+    background-color: var(--bg-deep) !important;
+    background-image: radial-gradient(circle at 50% -10%, rgba(40,35,60,0.8), var(--bg-deep) 55%) !important;
     font-family: 'Manrope', sans-serif;
+    color: var(--text-main);
 }
-#MainMenu { visibility: hidden; }
-footer { visibility: hidden; }
-[data-testid="stHeader"] { background: rgba(0,0,0,0); }
-.block-container {
-    max-width: 980px;
-    padding: clamp(14px,4vw,32px) clamp(12px,5vw,40px) 100px !important;
-    margin: auto;
+
+/* 🎱 La Bola 30 Flotante */
+.floating-ball-wrap {
+    display: flex; justify-content: center; margin-top: 10px; margin-bottom: -15px;
 }
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-thumb { background: rgba(212,175,55,0.35); border-radius: 8px; }
-:focus-visible { outline: 2px solid var(--gold-bright); outline-offset: 2px; }
-
-.hero-title {
-    font-family: 'Cinzel', serif; font-weight: 800; font-size: clamp(26px, 5vw, 46px);
-    text-align: center; letter-spacing: 2px;
-    background: linear-gradient(90deg, var(--gold) 0%, var(--gold-bright) 25%, #fff8dc 50%, var(--gold-bright) 75%, var(--gold) 100%);
-    background-size: 200% auto; -webkit-background-clip: text; background-clip: text;
-    color: transparent; animation: shimmerText 6s linear infinite; margin-bottom: 2px;
+.pool-ball {
+    width: 75px; height: 75px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #5a5a6a, #0a0a0f 80%);
+    box-shadow: 0 20px 35px rgba(0,0,0,0.7), 0 0 45px var(--gold-glow);
+    display: flex; align-items: center; justify-content: center;
+    animation: float 4s ease-in-out infinite;
+    border: 1px solid rgba(255,255,255,0.05);
 }
-.hero-tagline { text-align: center; font-style: italic; color: var(--muted); font-size: 14px; letter-spacing: .5px; margin-bottom: 16px; }
-.divider-gold { width: 120px; height: 2px; margin: 8px auto 24px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
-
-.glass-card {
-    background: var(--glass); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-    border: 1px solid var(--glass-border); border-radius: 18px; padding: 26px 28px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
-    margin-bottom: 18px; animation: fadeUp .5s ease both;
+.pool-ball-inner {
+    width: 38px; height: 38px; border-radius: 50%; background: #f0f0f0;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.4), 0 0 10px rgba(255,255,255,0.5);
 }
-.plaque-eyebrow { font-family: 'Cinzel'; font-weight: 700; letter-spacing: 1.5px; color: var(--gold-bright); font-size: 15px; text-transform: uppercase; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
-.plaque-eyebrow::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--glass-border), transparent); }
+.pool-ball-text {
+    font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 22px; color: #111;
+    letter-spacing: -1px;
+}
 
-.rules-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 16px; }
-.rules-list li { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; line-height: 1.55; }
-.rule-emoji { font-size: 20px; filter: drop-shadow(0 0 6px rgba(212,175,55,.5)); }
-.rules-list li strong { color: var(--gold-bright); }
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-12px); box-shadow: 0 30px 45px rgba(0,0,0,0.6), 0 0 65px var(--gold-glow); }
+}
 
-.hero-ball-center { display: flex; justify-content: center; margin: 4px 0 28px; }
-.ball-orbit-wrap { position: relative; width: min(calc(var(--ball-size) * 1.7), 82vw); height: min(calc(var(--ball-size) * 1.7), 82vw); display: flex; align-items: center; justify-content: center; }
-.ball-ring { position: absolute; inset: 0; border-radius: 50%; border: 2px dashed rgba(212,175,55,.4); animation: spinRing 14s linear infinite; }
-.ball-ring.ring-2 { inset: 12%; border-color: rgba(230,57,79,.35); border-style: dotted; animation: spinRing 9s linear infinite reverse; }
-.ball-sphere { position: relative; z-index: 2; width: min(var(--ball-size), 58vw); height: min(var(--ball-size), 58vw); border-radius: 50%; background: radial-gradient(circle at 32% 28%, #fff6d0, var(--gold-bright) 30%, var(--gold) 60%, #6e4f10 100%); box-shadow: inset -14px -14px 30px rgba(0,0,0,.45), inset 10px 10px 24px rgba(255,255,255,.35), 0 0 50px rgba(212,175,55,.45); display: flex; flex-direction: column; align-items: center; justify-content: center; animation: floatY 4.6s ease-in-out infinite; }
-.ball-sphere.pop-in { animation: popIn .55s cubic-bezier(.34,1.56,.64,1) both, floatY 4.6s ease-in-out infinite .55s; }
-.ball-number { font-family: 'Orbitron'; font-weight: 800; font-size: calc(min(var(--ball-size), 58vw) * 0.34); color: #241a04; text-shadow: 0 1px 0 rgba(255,255,255,.35); }
-.ball-caption { font-family: 'Manrope'; font-weight: 700; font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; color: #3a2c08; margin-top: 2px; }
+/* Títulos Elegantes */
+.main-title {
+    font-family: 'Playfair Display', serif; text-align: center; font-size: clamp(40px, 6vw, 65px); 
+    letter-spacing: 3px; color: white; margin-top: 15px; margin-bottom: 5px;
+}
+.main-title span { color: var(--gold-bright); text-shadow: 0 0 20px var(--gold-glow); }
+.sub-title {
+    text-align: center; color: var(--text-muted); font-size: 15px; letter-spacing: 1.5px; 
+    font-weight: 500; margin-bottom: 15px;
+}
+.academic-badge {
+    display: table; margin: 0 auto 40px; padding: 6px 24px; border: 1px solid var(--gold);
+    border-radius: 30px; font-size: 11px; color: var(--gold); letter-spacing: 2px;
+    background: rgba(212,175,55,0.05); text-transform: uppercase; font-weight: 600;
+}
 
-.stButton > button { background: linear-gradient(135deg, var(--gold-bright), var(--gold) 55%, #a3781f); color: #1a1206 !important; font-family: 'Manrope'; font-weight: 800; letter-spacing: .3px; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; padding: 10px 18px; box-shadow: 0 6px 18px rgba(212,175,55,.28); transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
-.stButton > button:hover:not(:disabled) { transform: translateY(-2px) scale(1.015); box-shadow: 0 10px 26px rgba(212,175,55,.42); filter: brightness(1.05); }
-.stButton > button:active:not(:disabled) { transform: translateY(0) scale(.98); }
-.stButton > button:disabled { opacity: .4; filter: grayscale(.4); box-shadow: none; }
-.stTextInput input, .stNumberInput input { background: rgba(255,255,255,.05) !important; border: 1px solid var(--glass-border) !important; border-radius: 10px !important; color: var(--ink) !important; font-size: 18px !important;}
-.stTextInput input:focus, .stNumberInput input:focus { border-color: var(--gold) !important; box-shadow: 0 0 0 3px rgba(212,175,55,.2) !important; }
+/* Paneles Interactivos (Efecto Hover Iluminado) */
+.action-panel {
+    background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 16px; padding: 30px; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.4); height: 100%;
+}
+.action-panel:hover {
+    border-color: var(--gold); transform: translateY(-5px);
+    box-shadow: 0 20px 45px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow), inset 0 0 20px rgba(212,175,55,0.05);
+}
+.panel-header {
+    font-family: 'Playfair Display', serif; color: var(--gold-bright); font-size: 18px; 
+    margin-bottom: 25px; display: flex; align-items: center; gap: 12px; 
+    border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;
+}
 
-.room-code-display { text-align: center; font-size: 28px; font-family: 'Orbitron'; font-weight: 800; color: var(--gold-bright); letter-spacing: 6px; margin: 10px 0 20px; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 12px; border: 1px dashed var(--gold); }
-.roster-wrap { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
-.player-tag { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; border: 1px solid var(--glass-border); background: rgba(255,255,255,.04); }
-.tag-host { color: var(--gold-bright); border-color: rgba(212,175,55,.5); }
-.tag-player { color: #cfe9dd; border-color: rgba(31,174,122,.4); }
+/* Reglas Visibles */
+.rules-container {
+    background: rgba(20, 18, 28, 0.6); border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 12px; padding: 25px; margin-top: 40px; border-left: 4px solid var(--gold);
+}
+.rules-title { font-family: 'Playfair Display', serif; color: white; font-size: 20px; margin-bottom: 15px; }
+.rules-text { font-size: 14.5px; color: var(--text-muted); line-height: 1.6; }
+.rules-text strong { color: var(--gold); }
 
-.mesa-estado { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 14px 0 22px; }
-.status-pill { padding: 6px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 700; border: 1px solid var(--glass-border); }
-.pill-done { color: #8ee7b8; border-color: rgba(31,174,122,.5); background: rgba(31,174,122,.08); }
-.pill-active { color: var(--gold-bright); border-color: rgba(212,175,55,.6); background: rgba(212,175,55,.1); animation: pulseGlow 1.8s ease-in-out infinite; }
-.pill-wait { color: var(--muted); }
-
-.handoff-card { text-align: center; padding: 40px 24px; }
-.handoff-icon { font-size: 44px; animation: floatY 2.6s ease-in-out infinite; margin-bottom: 6px; }
-
-.pips-wrap { text-align: center; margin: 4px 0 14px; color: var(--muted); font-size: 13px; }
-.pip-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-left: 6px; background: rgba(255,255,255,.15); border: 1px solid var(--glass-border); vertical-align: middle; }
-.pip-filled { background: var(--gold); box-shadow: 0 0 8px rgba(212,175,55,.6); }
-
-.ticker-bar { position: fixed; left: 0; right: 0; bottom: 0; height: 44px; background: rgba(5,6,10,.85); backdrop-filter: blur(10px); border-top: 1px solid var(--glass-border); overflow: hidden; z-index: 999; display: flex; align-items: center; }
-.ticker-track { display: flex; white-space: nowrap; animation: tickerScroll 24s linear infinite; }
-.ticker-item { font-family: 'Orbitron'; font-size: 12px; color: var(--gold-bright); padding: 0 18px; }
-.ticker-dot { color: var(--ruby); }
-
-.results-banner { text-align: center; font-family: 'Cinzel'; font-size: 20px; color: var(--gold-bright); padding: 16px; margin-bottom: 20px; border: 1px solid var(--glass-border); border-radius: 14px; background: rgba(212,175,55,.06); animation: pulseGlow 2.4s ease-in-out infinite; }
-.tie-banner { color: #8ee7b8; background: rgba(31,174,122,.08); }
-.reveal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap: 16px; margin-bottom: 22px; }
-.reveal-card { position: relative; text-align: center; padding: 22px 12px; border-radius: 16px; border: 1px solid var(--glass-border); background: var(--glass); animation: cardReveal .6s ease both; overflow: hidden; }
-.reveal-card.winner { border-color: var(--gold); box-shadow: 0 0 34px rgba(212,175,55,.5); animation: cardReveal .6s ease both, pulseGlow 2.2s ease-in-out infinite .6s; }
-.reveal-card.tie { border-color: var(--emerald); box-shadow: 0 0 22px rgba(31,174,122,.35); }
-.reveal-card.lost { opacity: .7; filter: saturate(.7); }
-.reveal-name { font-weight: 800; margin-bottom: 6px; }
-.reveal-number { font-family: 'Orbitron'; font-size: 34px; font-weight: 800; color: var(--gold-bright); }
-.reveal-distance { font-size: 12px; color: var(--muted); margin: 6px 0; }
-.reveal-badge { font-size: 12px; font-weight: 700; }
-.confetti-wrap { position: relative; height: 0; }
-.confetti-piece { position: absolute; top: -20px; width: 8px; height: 14px; animation: confettiFall 2.6s ease-in forwards; border-radius: 2px; }
-.payout-card .payout-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed var(--glass-border); font-size: 14px; }
-.payout-amount { font-family: 'Orbitron'; color: var(--gold-bright); }
-
-@keyframes floatY { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-@keyframes spinRing { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes popIn { 0% { transform: scale(.4); opacity: 0; } 70% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
-@keyframes pulseGlow { 0%,100% { box-shadow: 0 0 14px rgba(212,175,55,.3); } 50% { box-shadow: 0 0 30px rgba(212,175,55,.6); } }
-@keyframes shimmerText { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-@keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-@keyframes fadeUp { 0% { opacity: 0; transform: translateY(16px); } 100% { opacity: 1; transform: translateY(0); } }
-@keyframes cardReveal { 0% { transform: rotateY(90deg) scale(.85); opacity: 0; } 100% { transform: rotateY(0) scale(1); opacity: 1; } }
-@keyframes confettiFall { 0% { transform: translateY(-40px) rotate(0deg); opacity: 1; } 100% { transform: translateY(340px) rotate(540deg); opacity: 0; } }
+/* Inputs y Botones */
+div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
+    color: var(--text-muted) !important; font-size: 12px !important; letter-spacing: 1.5px !important; text-transform: uppercase;
+}
+.stTextInput input, .stNumberInput input {
+    background-color: #100e16 !important; color: white !important;
+    border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 8px !important;
+    padding: 14px !important; transition: all 0.3s ease !important;
+}
+.stTextInput input:focus, .stNumberInput input:focus {
+    border-color: var(--gold-bright) !important; box-shadow: 0 0 12px var(--gold-glow) !important;
+}
+.stButton button {
+    background: linear-gradient(90deg, #b08d29 0%, var(--gold-bright) 100%) !important;
+    color: #111 !important; font-family: 'Playfair Display', serif !important; font-weight: 800 !important; 
+    letter-spacing: 2px !important; border: none !important; border-radius: 8px !important; 
+    padding: 24px 15px !important; transition: all 0.3s ease !important; width: 100%; 
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5), 0 0 15px var(--gold-glow) !important; text-transform: uppercase;
+}
+.stButton button:hover {
+    transform: scale(1.02) !important; box-shadow: 0 12px 25px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow) !important;
+    filter: brightness(1.1);
+}
 """
 
 def inject_css():
@@ -296,19 +283,24 @@ def ball_widget(number=None, subtitle=None, size=190, animate=False):
         </div>
     </div>
     """
-
+    
 def render_header(subtitle=None):
     st.markdown(
-        f"""
-        <div class='header-wrap'>
-            <div class='hero-title'>🎰 EL DESAFÍO DEL 30</div>
-            <div class='hero-tagline'>{subtitle or "El arte de acercarse a la perfección"}</div>
-            <div class='divider-gold'></div>
+        """
+        <div class='floating-ball-wrap'>
+            <div class='pool-ball'>
+                <div class='pool-ball-inner'>
+                    <span class='pool-ball-text'>30</span>
+                </div>
+            </div>
         </div>
+        <div class='main-title'>TÓMBOLA <span>30</span></div>
+        <div class='sub-title'>Juego de Probabilidad · Muestreo Sin Reemplazo</div>
+        <div class='academic-badge'>Proyecto Final — Modelos de Probabilidad</div>
         """,
         unsafe_allow_html=True,
     )
-
+    
 def render_roster():
     chips = ""
     for nombre, datos in st.session_state.players.items():
@@ -341,75 +333,80 @@ def render_confetti():
 # =========================================================
 # FASE 1 · LOGIN Y LOBBY DE SALAS
 # =========================================================
+# =========================================================
+# FASE 1 · LOGIN Y LOBBY DE SALAS
+# =========================================================
 def render_login():
-    # Agregamos la bolita flotante gigante al centro
-    st.markdown(f"<div class='hero-ball-center'>{ball_widget(None, subtitle='META', size=220, animate=True)}</div>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2, gap="large")
     
-    col_reglas, col_login = st.columns([1.2, 1], gap="large")
-    
-    with col_reglas:
-        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='plaque-eyebrow'>📜 REGLAMENTO OFICIAL DE LA MESA</div>", unsafe_allow_html=True)
+    with col1:
         st.markdown("""
-        <ul class='rules-list'>
-            <li><span class='rule-emoji'>🎯</span> <span><strong>El Objetivo:</strong> Acércate lo más posible al número 30.</span></li>
-            <li><span class='rule-emoji'>🎱</span> <span><strong>La Tómbola:</strong> Bolitas del 1 al 60 (sin reposición).</span></li>
-            <li><span class='rule-emoji'>🤫</span> <span><strong>Tu Turno:</strong> Juega en secreto. Saca una bolita y decide: ¿te plantas o pides otra?</span></li>
-            <li><span class='rule-emoji'>🔄</span> <span><strong>Los Cambios:</strong> Puedes cambiar de bolita máximo 2 veces, pero ojo: la bolita anterior se descarta para siempre.</span></li>
-            <li><span class='rule-emoji'>💰</span> <span><strong>Premios:</strong> El ganador se lleva el doble de su apuesta. ¡Si hay empate exacto, recupera tu dinero!</span></li>
-        </ul>
+        <div class='action-panel'>
+            <div class='panel-header'>🏠 Crear Sala</div>
+        </div>
         """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
         
-    with col_login:
-        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        st.markdown("<div class='plaque-eyebrow'>🚪 ENTRADA AL CASINO</div>", unsafe_allow_html=True)
+        nombre_host = st.text_input("Tu Nombre", placeholder="Ej: Fran", key="host_name")
+        apuesta = st.number_input("Apuesta Obligatoria", min_value=1000, step=1000, value=2000)
         
-        opcion = st.radio("¿Cómo entras a la mesa?", ["🪄 Anfitrión — Crear sala", "🎮 Jugador — Unirse a sala"])
-        st.divider()
+        if st.button("Crear Sala ➔", use_container_width=True):
+            if not nombre_host:
+                st.error("Ingresa tu nombre.")
+                return
+            codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+            ref = db.reference(f'salas/{codigo}')
+            ref.set({
+                'fase': 'lobby', 'apuesta': apuesta,
+                'jugadores': {nombre_host: {'is_host': True, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None}}
+            })
+            st.session_state.room_code = codigo
+            st.session_state.current_user = {"name": nombre_host, "is_host": True}
+            st.rerun()
+
+    with col2:
+        st.markdown("""
+        <div class='action-panel'>
+            <div class='panel-header'>🚪 Unirse a Sala</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        nombre = st.text_input("Tu nombre", placeholder="Ej. Fran", max_chars=15)
+        nombre_jugador = st.text_input("Tu Nombre", placeholder="Ej: María", key="player_name")
+        codigo_ingresado = st.text_input("Código de Sala (4 Letras)", placeholder="A B C D").upper()
         
-        if "Anfitrión" in opcion:
-            apuesta = st.number_input("Fijar apuesta (fichas)", min_value=50, step=50, value=100)
-            if st.button("Entrar al Casino", use_container_width=True):
-                if not nombre:
-                    st.error("Ingresa tu nombre para sentarte en la mesa.")
-                    return
-                
-                codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
-                ref = db.reference(f'salas/{codigo}')
-                ref.set({
-                    'fase': 'lobby', 'apuesta': apuesta,
-                    'jugadores': {nombre: {'is_host': True, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None}}
+        if st.button("Unirse ➔", use_container_width=True):
+            if not nombre_jugador or not codigo_ingresado:
+                st.error("Faltan datos.")
+                return
+            ref = db.reference(f'salas/{codigo_ingresado}')
+            sala_data = ref.get()
+            
+            if not sala_data:
+                st.error("La sala no existe.")
+            elif nombre_jugador in sala_data.get('jugadores', {}):
+                st.error("Ese nombre ya está en uso.")
+            elif sala_data.get('fase') != 'lobby':
+                st.error("La partida ya comenzó.")
+            else:
+                ref.child(f'jugadores/{nombre_jugador}').set({
+                    'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
                 })
-                st.session_state.room_code = codigo
-                st.session_state.current_user = {"name": nombre, "is_host": True}
+                st.session_state.room_code = codigo_ingresado
+                st.session_state.current_user = {"name": nombre_jugador, "is_host": False}
                 st.rerun()
-        else:
-            codigo_ingresado = st.text_input("Código de la sala", placeholder="Ej. A7X2").upper()
-            if st.button("Entrar al Casino", use_container_width=True):
-                if not nombre or not codigo_ingresado:
-                    st.error("Faltan datos.")
-                    return
-                
-                ref = db.reference(f'salas/{codigo_ingresado}')
-                sala_data = ref.get()
-                
-                if not sala_data:
-                    st.error("La sala no existe.")
-                elif nombre in sala_data.get('jugadores', {}):
-                    st.error("Ese nombre ya está en uso.")
-                elif sala_data.get('fase') != 'lobby':
-                    st.error("La partida ya comenzó.")
-                else:
-                    ref.child(f'jugadores/{nombre}').set({
-                        'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
-                    })
-                    st.session_state.room_code = codigo_ingresado
-                    st.session_state.current_user = {"name": nombre, "is_host": False}
-                    st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Reglas del juego siempre visibles abajo
+    st.markdown("""
+    <div class='rules-container'>
+        <div class='rules-title'>📜 Reglamento Oficial de la Mesa</div>
+        <div class='rules-text'>
+            • <strong>El Objetivo:</strong> Acércate lo más posible al número 30.<br>
+            • <strong>La Tómbola:</strong> Bolitas del 1 al 60 (Muestreo sin reposición).<br>
+            • <strong>Tu Turno:</strong> Juega en secreto. Saca una bolita y decide: ¿te plantas o pides otra?<br>
+            • <strong>Los Cambios:</strong> Puedes cambiar de bolita máximo 2 veces, pero la anterior se descarta para siempre.<br>
+            • <strong>Premios:</strong> El ganador se lleva todo. ¡Si hay empate exacto, recuperan su dinero!
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
         
 def render_waiting_room():
     sincronizar_datos()
