@@ -399,6 +399,26 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
 }
 .tie-banner { color: var(--ivory); }
 
+/* Tu resultado personal — cuánto ganaste o perdiste tú */
+.mi-resultado {
+    text-align: center; font-size: 18.5px; font-weight: 700; letter-spacing: 0.2px;
+    padding: 20px 22px; border-radius: var(--radius-lg); margin: 6px 0 26px;
+    border: 1px solid var(--panel-border-soft);
+}
+.mi-resultado strong { font-weight: 800; }
+.mio-ganaste {
+    background: rgba(31,122,83,0.12); border-color: var(--emerald); color: var(--emerald-bright);
+    box-shadow: 0 0 30px rgba(31,122,83,0.22);
+}
+.mio-perdiste { background: rgba(156,43,62,0.10); border-color: var(--ruby); color: var(--ruby-bright); }
+.mio-empate { background: rgba(201,162,75,0.08); border-color: var(--gold); color: var(--gold-bright); }
+
+/* Monto ganado/perdido dentro de cada tarjeta de jugador */
+.reveal-amount { font-size: 15px; font-weight: 800; margin: 6px 0 4px; letter-spacing: 0.3px; }
+.amount-positive { color: var(--emerald-bright); }
+.amount-negative { color: var(--ruby-bright); }
+.amount-neutral { color: var(--text-muted); }
+
 .reveal-grid { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; margin-bottom: 20px; }
 .reveal-card {
     width: 190px; padding: 24px 14px; border-radius: var(--radius-md); text-align: center;
@@ -1193,6 +1213,13 @@ def calcular_resultados():
     return resultados, ganadores
 
 
+def formatear_monto(monto: int) -> str:
+    """Formatea un monto con separador de miles y signo (+/-) para mostrar
+    ganancias/pérdidas de forma clara, ej: +2.000 / -2.000 / 0."""
+    signo = "+" if monto > 0 else ("-" if monto < 0 else "")
+    return f"{signo}{abs(monto):,}".replace(",", ".")
+
+
 def render_results_phase():
     sincronizar_datos()
     render_header("🏆 Resultados Finales")
@@ -1209,17 +1236,33 @@ def render_results_phase():
         nombres_empate = " y ".join(ganadores)
         st.markdown(f"<div class='results-banner tie-banner'>🤝 ¡Empate entre {nombres_empate}! Recuperan apuesta.</div>", unsafe_allow_html=True)
 
+    # ======= CUÁNTO GANASTE (O PERDISTE) TÚ =======
+    usuario = st.session_state.current_user
+    mi_nombre = usuario["name"] if usuario else None
+    if mi_nombre in resultados:
+        mi_neto = resultados[mi_nombre]["neto"]
+        if mi_neto > 0:
+            clase_mio, texto_mio = "mio-ganaste", f"🏆 ¡Ganaste! Te llevas <strong>🪙 {formatear_monto(mi_neto)}</strong> fichas"
+        elif mi_neto < 0:
+            clase_mio, texto_mio = "mio-perdiste", f"❌ Perdiste <strong>🪙 {formatear_monto(mi_neto)}</strong> fichas"
+        else:
+            clase_mio, texto_mio = "mio-empate", "🤝 Empate — recuperas tu apuesta, no ganas ni pierdes fichas"
+        st.markdown(f"<div class='mi-resultado {clase_mio}'>{texto_mio}</div>", unsafe_allow_html=True)
+
     orden = sorted(resultados.items(), key=lambda kv: kv[1]["distancia"])
     badges = {"GANADOR": "🏆 Ganador", "EMPATE": "🤝 Empate", "PERDIÓ": "❌ Pierde"}
     clases = {"GANADOR": "winner", "EMPATE": "tie", "PERDIÓ": "lost"}
 
     html = "<div class='reveal-grid'>"
     for i, (nombre, r) in enumerate(orden):
+        neto = r["neto"]
+        clase_monto = "amount-positive" if neto > 0 else ("amount-negative" if neto < 0 else "amount-neutral")
         html += (
             f"<div class='reveal-card {clases[r['estado']]}' style='animation-delay:{i * 0.15}s'>"
             f"<div class='reveal-name'>{nombre}</div>"
             f"<div class='reveal-number'>{r['numero']}</div>"
             f"<div class='reveal-distance'>Distancia a 30 → {r['distancia']}</div>"
+            f"<div class='reveal-amount {clase_monto}'>🪙 {formatear_monto(neto)}</div>"
             f"<div class='reveal-badge'>{badges[r['estado']]}</div>"
             "</div>"
         )
@@ -1227,7 +1270,6 @@ def render_results_phase():
     st.markdown(html, unsafe_allow_html=True)
 
     st.divider()
-    usuario = st.session_state.current_user
     if usuario["is_host"]:
         if st.button("🔁 Jugar Nueva Ronda", use_container_width=True):
             get_sala_ref().update({'fase': 'lobby'})
