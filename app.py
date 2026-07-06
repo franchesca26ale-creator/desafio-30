@@ -330,22 +330,13 @@ def render_confetti():
     st.markdown(f"<div class='confetti-wrap'>{piezas}</div>", unsafe_allow_html=True)
 
 
-# =========================================================
-# FASE 1 · LOGIN Y LOBBY DE SALAS
-# =========================================================
-# =========================================================
-# FASE 1 · LOGIN Y LOBBY DE SALAS
-# =========================================================
+
 def render_login():
     col1, col2 = st.columns(2, gap="large")
     
     with col1:
-        st.markdown("""
-        <div class='action-panel'>
-            <div class='panel-header'>🏠 Crear Sala</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown("<div class='action-panel'>", unsafe_allow_html=True)
+        st.markdown("<div class='panel-header'>🏠 Crear Sala</div>", unsafe_allow_html=True)
         nombre_host = st.text_input("Tu Nombre", placeholder="Ej: Fran", key="host_name")
         apuesta = st.number_input("Apuesta Obligatoria", min_value=1000, step=1000, value=2000)
         
@@ -362,14 +353,11 @@ def render_login():
             st.session_state.room_code = codigo
             st.session_state.current_user = {"name": nombre_host, "is_host": True}
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col2:
-        st.markdown("""
-        <div class='action-panel'>
-            <div class='panel-header'>🚪 Unirse a Sala</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown("<div class='action-panel'>", unsafe_allow_html=True)
+        st.markdown("<div class='panel-header'>🚪 Unirse a Sala</div>", unsafe_allow_html=True)
         nombre_jugador = st.text_input("Tu Nombre", placeholder="Ej: María", key="player_name")
         codigo_ingresado = st.text_input("Código de Sala (4 Letras)", placeholder="A B C D").upper()
         
@@ -379,13 +367,10 @@ def render_login():
                 return
             ref = db.reference(f'salas/{codigo_ingresado}')
             sala_data = ref.get()
-            
             if not sala_data:
                 st.error("La sala no existe.")
             elif nombre_jugador in sala_data.get('jugadores', {}):
                 st.error("Ese nombre ya está en uso.")
-            elif sala_data.get('fase') != 'lobby':
-                st.error("La partida ya comenzó.")
             else:
                 ref.child(f'jugadores/{nombre_jugador}').set({
                     'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
@@ -393,8 +378,9 @@ def render_login():
                 st.session_state.room_code = codigo_ingresado
                 st.session_state.current_user = {"name": nombre_jugador, "is_host": False}
                 st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Reglas del juego siempre visibles abajo
+    # Reglas actualizadas
     st.markdown("""
     <div class='rules-container'>
         <div class='rules-title'>📜 Reglamento Oficial de la Mesa</div>
@@ -403,7 +389,7 @@ def render_login():
             • <strong>La Tómbola:</strong> Bolitas del 1 al 60 (Muestreo sin reposición).<br>
             • <strong>Tu Turno:</strong> Juega en secreto. Saca una bolita y decide: ¿te plantas o pides otra?<br>
             • <strong>Los Cambios:</strong> Puedes cambiar de bolita máximo 2 veces, pero la anterior se descarta para siempre.<br>
-            • <strong>Premios:</strong> El ganador se lleva todo. ¡Si hay empate exacto, recuperan su dinero!
+            • <strong>Premios:</strong> El ganador duplica su apuesta inicial. ¡Si hay empate exacto, recupera su dinero!
         </div>
     </div>
     """, unsafe_allow_html=True)
