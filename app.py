@@ -328,7 +328,7 @@ def render_confetti():
         piezas += f"<span class='confetti-piece' style='left:{izquierda}%; animation-delay:{retraso}s; background:{color}; transform:rotate({rotacion}deg);'></span>"
     st.markdown(f"<div class='confetti-wrap'>{piezas}</div>", unsafe_allow_html=True)
 
-
+##CREAR SALA
 def render_login():
     col1, col2 = st.columns(2, gap="large")
     
@@ -340,7 +340,7 @@ def render_login():
         nombre_host = st.text_input("TU NOMBRE", placeholder="Ej: Fran", key="host_name")
         apuesta = st.number_input("APUESTA OBLIGATORIA", min_value=1000, step=1000, value=2000)
         
-        if st.button("CREAR SALA ➔", use_container_width=True):
+        if st.button("CREAR SALA ➔", use_container_width=True, key="btn_crear_sala"):
             # ... (tu lógica de creación de sala) ...
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True) # Cerramos el panel aquí
@@ -352,7 +352,7 @@ def render_login():
         nombre_jugador = st.text_input("TU NOMBRE", placeholder="Ej: María", key="player_name")
         codigo_ingresado = st.text_input("CÓDIGO DE SALA (4 LETRAS)", placeholder="A B C D").upper()
         
-        if st.button("CREAR SALA ➔", use_container_width=True):
+       if st.button("UNIRSE ➔", use_container_width=True, key="btn_unirse_sala"):
             if not nombre_host:
                 st.error("Ingresa tu nombre.")
             else:
