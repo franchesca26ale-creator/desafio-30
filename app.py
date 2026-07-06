@@ -352,9 +352,16 @@ def render_login():
         nombre_jugador = st.text_input("TU NOMBRE", placeholder="Ej: María", key="player_name")
         codigo_ingresado = st.text_input("CÓDIGO DE SALA (4 LETRAS)", placeholder="A B C D").upper()
         
-        if st.button("UNIRSE ➔", use_container_width=True):
-            # ... (tu lógica de unión) ...
-            st.rerun()
+        if st.button("CREAR SALA ➔", use_container_width=True):
+            if not nombre_host:
+                st.error("Ingresa tu nombre.")
+            else:
+                # Tu lógica de Firebase aquí...
+                codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                # ...
+                st.rerun()
+        
+        # EL CIERRE DEL DIV VA AQUÍ, DESPUÉS DEL BOTÓN
         st.markdown("</div>", unsafe_allow_html=True)
 
     # Las reglas quedan debajo de todo el bloque principal
