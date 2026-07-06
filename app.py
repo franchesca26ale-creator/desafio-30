@@ -24,7 +24,7 @@ if not firebase_admin._apps:
     
     # ⚠️ ASEGÚRATE DE QUE ESTE SEA TU ENLACE REAL
     firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://bola30-64b83-default-rtdb.firebaseio.com/'
+        'databaseURL': 'https://console.firebase.google.com/u/0/project/bola30-64b83/database/bola30-64b83-default-rtdb/data/~2F'
     })
 
 # =========================================================
