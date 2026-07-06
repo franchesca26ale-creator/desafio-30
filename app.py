@@ -121,9 +121,13 @@ html, body, .stApp {
     box-shadow: 0 20px 45px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow), inset 0 0 20px rgba(212,175,55,0.05);
 }
 .panel-header {
-    font-family: 'Playfair Display', serif; color: var(--gold-bright); font-size: 18px; 
-    margin-bottom: 25px; display: flex; align-items: center; gap: 12px; 
-    border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px; text-transform: uppercase; letter-spacing: 1px;
+    font-family: 'Playfair Display', serif; 
+    color: var(--gold-bright); 
+    font-size: 16px; 
+    margin-bottom: 20px; 
+    padding-bottom: 15px; 
+    border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    display: flex; align-items: center; gap: 10px;
 }
 
 /* Reglas Visibles */
@@ -335,12 +339,15 @@ def render_login():
     col1, col2 = st.columns(2, gap="large")
     
     with col1:
+        # Iniciamos el panel
         st.markdown("<div class='action-panel'>", unsafe_allow_html=True)
-        st.markdown("<div class='panel-header'>🏠 Crear Sala</div>", unsafe_allow_html=True)
-        nombre_host = st.text_input("Tu Nombre", placeholder="Ej: Fran", key="host_name")
-        apuesta = st.number_input("Apuesta Obligatoria", min_value=1000, step=1000, value=2000)
+        # El título queda DENTRO del panel como cabecera
+        st.markdown("<div class='panel-header'>🏠 CREAR SALA</div>", unsafe_allow_html=True)
         
-        if st.button("Crear Sala ➔", use_container_width=True):
+        nombre_host = st.text_input("TU NOMBRE", placeholder="Ej: Fran", key="host_name")
+        apuesta = st.number_input("APUESTA OBLIGATORIA", min_value=1000, step=1000, value=2000)
+        
+        if st.button("CREAR SALA ➔", use_container_width=True):
             if not nombre_host:
                 st.error("Ingresa tu nombre.")
                 return
@@ -353,15 +360,17 @@ def render_login():
             st.session_state.room_code = codigo
             st.session_state.current_user = {"name": nombre_host, "is_host": True}
             st.rerun()
+        # Cerramos el panel después de todo el contenido
         st.markdown("</div>", unsafe_allow_html=True)
 
     with col2:
         st.markdown("<div class='action-panel'>", unsafe_allow_html=True)
-        st.markdown("<div class='panel-header'>🚪 Unirse a Sala</div>", unsafe_allow_html=True)
-        nombre_jugador = st.text_input("Tu Nombre", placeholder="Ej: María", key="player_name")
-        codigo_ingresado = st.text_input("Código de Sala (4 Letras)", placeholder="A B C D").upper()
+        st.markdown("<div class='panel-header'>🚪 UNIRSE A SALA</div>", unsafe_allow_html=True)
         
-        if st.button("Unirse ➔", use_container_width=True):
+        nombre_jugador = st.text_input("TU NOMBRE", placeholder="Ej: María", key="player_name")
+        codigo_ingresado = st.text_input("CÓDIGO DE SALA (4 LETRAS)", placeholder="A B C D").upper()
+        
+        if st.button("UNIRSE ➔", use_container_width=True):
             if not nombre_jugador or not codigo_ingresado:
                 st.error("Faltan datos.")
                 return
@@ -376,11 +385,11 @@ def render_login():
                     'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
                 })
                 st.session_state.room_code = codigo_ingresado
-                st.session_state.current_user = {"name": nombre_jugador, "is_host": False}
+                st.session_state.current_user = {"name": nombre_jugador, 'is_host': False}
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Reglas actualizadas
+    # Las reglas quedan debajo de todo el bloque principal
     st.markdown("""
     <div class='rules-container'>
         <div class='rules-title'>📜 Reglamento Oficial de la Mesa</div>
@@ -389,7 +398,7 @@ def render_login():
             • <strong>La Tómbola:</strong> Bolitas del 1 al 60 (Muestreo sin reposición).<br>
             • <strong>Tu Turno:</strong> Juega en secreto. Saca una bolita y decide: ¿te plantas o pides otra?<br>
             • <strong>Los Cambios:</strong> Puedes cambiar de bolita máximo 2 veces, pero la anterior se descarta para siempre.<br>
-            • <strong>Premios:</strong> El ganador duplica su apuesta inicial. ¡Si hay empate exacto, recupera su dinero!
+            • <strong>Premios:</strong> El ganador duplica su apuesta inicial. ¡Si hay empate exacto, recuperas su dinero!
         </div>
     </div>
     """, unsafe_allow_html=True)
