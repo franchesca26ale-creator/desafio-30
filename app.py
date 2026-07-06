@@ -42,50 +42,140 @@ NUMERO_OBJETIVO = 30
 TOMBOLA_MIN, TOMBOLA_MAX = 1, 60
 CAMBIOS_MAXIMOS = 2
 JUGADORES_REQUERIDOS = 3
+SEGUNDOS_ENTRE_SINCRONIZACIONES = 2  # cada cuánto se refresca la mesa en segundo plano
+
+# Compatibilidad: st.fragment reemplazó a st.experimental_fragment en versiones
+# recientes de Streamlit. Usamos el que exista para que la mesa se sincronice
+# sola en segundo plano, sin recargar toda la página ni botones de "actualizar".
+if hasattr(st, "fragment"):
+    _fragment = st.fragment
+elif hasattr(st, "experimental_fragment"):
+    _fragment = st.experimental_fragment
+else:
+    st.error(
+        "⚠️ Esta app necesita una versión más nueva de Streamlit para la "
+        "sincronización automática en vivo. Actualízala con: pip install -U streamlit"
+    )
+    st.stop()
 
 # =========================================================
 # ESTILOS — CSS INYECTADO
 # =========================================================
 CSS_STYLES = """
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
 
 :root {
-    --bg-deep: #13111c;
-    --panel-bg: #1a1825;
-    --gold: #d4af37;
-    --gold-bright: #ffd700;
-    --gold-glow: rgba(212, 175, 55, 0.4);
-    --text-main: #e2e2e2;
-    --text-muted: #8b8994;
+    --bg-deep: #0a0f0c;
+    --panel-bg: #131b16;
+    --panel-bg-soft: rgba(255,255,255,0.025);
+    --panel-border: rgba(201, 162, 75, 0.20);
+    --panel-border-soft: rgba(255,255,255,0.07);
+    --gold: #c9a24b;
+    --gold-bright: #f2d788;
+    --gold-dim: #8a6f2c;
+    --gold-glow: rgba(201, 162, 75, 0.38);
+    --ivory: #f4efe2;
+    --text-main: #eae4d6;
+    --text-muted: #96907f;
+    --ruby: #9c2b3e;
+    --ruby-bright: #d1546a;
+    --emerald: #1f7a53;
+    --emerald-bright: #38b47f;
+    --shadow-deep: rgba(0,0,0,0.55);
+    --radius-lg: 20px;
+    --radius-md: 14px;
 }
 
+/* =========================================================
+   BASE — MESA DE CASINO (fieltro oscuro + viñeta + textura)
+   ========================================================= */
 html, body, .stApp {
     background-color: var(--bg-deep) !important;
-    background-image: radial-gradient(circle at 50% -10%, rgba(40,35,60,0.8), var(--bg-deep) 55%) !important;
+    background-image:
+        radial-gradient(ellipse 900px 500px at 50% -8%, rgba(31,122,83,0.16), transparent 60%),
+        radial-gradient(circle at 12% 18%, rgba(201,162,75,0.06), transparent 42%),
+        radial-gradient(circle at 88% 82%, rgba(156,43,62,0.07), transparent 42%),
+        repeating-linear-gradient(45deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 28px),
+        repeating-linear-gradient(-45deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 28px) !important;
     font-family: 'Manrope', sans-serif;
     color: var(--text-main);
 }
 
-/* 🎱 La Bola 30 Flotante */
+/* Ocultamos el chrome por defecto de Streamlit para una app autocontenida */
+#MainMenu { visibility: hidden; }
+footer { visibility: hidden; }
+header[data-testid="stHeader"] { background: transparent !important; }
+div[data-testid="stToolbar"] { visibility: hidden; }
+div[data-testid="stDecoration"] { display: none; }
+
+.block-container { padding-top: 1.6rem !important; max-width: 1080px; }
+
+.stApp h1, .stApp h2, .stApp h3, .stApp h4 {
+    font-family: 'Playfair Display', serif; color: var(--ivory); letter-spacing: 0.5px;
+}
+.stApp .stCaption, .stApp small { color: var(--text-muted) !important; }
+hr { border-color: var(--panel-border-soft) !important; }
+
+/* Alertas de Streamlit re-vestidas al tono de la mesa */
+div[data-testid="stAlert"] {
+    background: var(--panel-bg) !important; border: 1px solid var(--panel-border) !important;
+    border-radius: var(--radius-md) !important; color: var(--text-main) !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+}
+
+/* =========================================================
+   CINTA SUPERIOR DE MARCA
+   ========================================================= */
+.top-ribbon {
+    display: flex; align-items: center; justify-content: space-between;
+    max-width: 900px; margin: 0 auto 4px; padding: 12px 6px 14px;
+    border-bottom: 1px solid var(--panel-border-soft);
+}
+.top-ribbon .brand-mark {
+    font-family: 'Playfair Display', serif; font-size: 13px; letter-spacing: 4px;
+    text-transform: uppercase; color: var(--text-muted); font-weight: 600;
+}
+.top-ribbon .brand-mark b { color: var(--gold); }
+.live-badge {
+    display: inline-flex; align-items: center; gap: 7px; font-size: 10.5px;
+    letter-spacing: 2px; text-transform: uppercase; color: var(--emerald-bright); font-weight: 700;
+}
+.live-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--emerald-bright);
+    box-shadow: 0 0 8px var(--emerald-bright); animation: live-pulse 1.7s ease-in-out infinite;
+}
+@keyframes live-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(1.35); }
+}
+.room-chip-badge {
+    font-size: 11px; letter-spacing: 2px; color: var(--gold-bright); border: 1px solid var(--panel-border);
+    background: rgba(201,162,75,0.07); padding: 4px 12px; border-radius: 20px; font-weight: 700;
+}
+
+/* 🎱 La ficha flotante (antes "bola de billar", ahora ficha de casino) */
 .floating-ball-wrap {
-    display: flex; justify-content: center; margin-top: 10px; margin-bottom: -15px;
+    display: flex; justify-content: center; margin-top: 6px; margin-bottom: -15px;
 }
 .pool-ball {
-    width: 75px; height: 75px; border-radius: 50%;
-    background: radial-gradient(circle at 30% 30%, #5a5a6a, #0a0a0f 80%);
+    width: 78px; height: 78px; border-radius: 50%;
+    background:
+        radial-gradient(circle, transparent 57%, var(--gold) 59%, var(--gold) 63%, transparent 65%),
+        radial-gradient(circle at 30% 26%, #24352b, #0a100c 80%);
     box-shadow: 0 20px 35px rgba(0,0,0,0.7), 0 0 45px var(--gold-glow);
     display: flex; align-items: center; justify-content: center;
     animation: float 4s ease-in-out infinite;
     border: 1px solid rgba(255,255,255,0.05);
 }
 .pool-ball-inner {
-    width: 38px; height: 38px; border-radius: 50%; background: #f0f0f0;
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(150deg, #1c2b23, #0b1310);
     display: flex; align-items: center; justify-content: center;
-    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.4), 0 0 10px rgba(255,255,255,0.5);
+    box-shadow: inset 0 -3px 6px rgba(0,0,0,0.5), inset 0 2px 3px rgba(255,255,255,0.06), 0 0 12px var(--gold-glow);
 }
 .pool-ball-text {
-    font-family: 'Manrope', sans-serif; font-weight: 800; font-size: 22px; color: #111;
-    letter-spacing: -1px;
+    font-family: 'Playfair Display', serif; font-weight: 800; font-size: 21px; color: var(--gold-bright);
+    letter-spacing: -1px; text-shadow: 0 0 10px var(--gold-glow);
 }
 
 @keyframes float {
@@ -95,66 +185,76 @@ html, body, .stApp {
 
 /* Títulos Elegantes */
 .main-title {
-    font-family: 'Playfair Display', serif; text-align: center; font-size: clamp(40px, 6vw, 65px); 
-    letter-spacing: 3px; color: white; margin-top: 15px; margin-bottom: 5px;
+    font-family: 'Playfair Display', serif; text-align: center; font-size: clamp(38px, 5.6vw, 60px);
+    letter-spacing: 4px; color: var(--ivory); margin-top: 14px; margin-bottom: 5px; font-weight: 700;
 }
 .main-title span { color: var(--gold-bright); text-shadow: 0 0 20px var(--gold-glow); }
 .sub-title {
-    text-align: center; color: var(--text-muted); font-size: 15px; letter-spacing: 1.5px; 
-    font-weight: 500; margin-bottom: 15px;
+    text-align: center; color: var(--text-muted); font-size: 14px; letter-spacing: 2px;
+    font-weight: 500; margin-bottom: 15px; text-transform: uppercase;
 }
 .academic-badge {
-    display: table; margin: 0 auto 40px; padding: 6px 24px; border: 1px solid var(--gold);
-    border-radius: 30px; font-size: 11px; color: var(--gold); letter-spacing: 2px;
-    background: rgba(212,175,55,0.05); text-transform: uppercase; font-weight: 600;
+    display: table; margin: 0 auto 40px; padding: 7px 26px; border: 1px solid var(--panel-border);
+    border-radius: 30px; font-size: 10.5px; color: var(--gold); letter-spacing: 2.5px;
+    background: rgba(201,162,75,0.05); text-transform: uppercase; font-weight: 700;
 }
 
 /* Paneles Interactivos (Efecto Hover Iluminado) */
 .action-panel {
-    background: var(--panel-bg); border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 16px; padding: 30px; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    position: relative; overflow: hidden;
+    background: linear-gradient(165deg, rgba(255,255,255,0.03), rgba(255,255,255,0.005)), var(--panel-bg);
+    border: 1px solid var(--panel-border-soft);
+    border-radius: var(--radius-lg); padding: 32px; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
     box-shadow: 0 15px 35px rgba(0,0,0,0.4); height: 100%;
+}
+.action-panel::before {
+    content: '♠'; position: absolute; right: -16px; bottom: -34px; font-size: 130px;
+    color: rgba(201,162,75,0.045); pointer-events: none; font-family: 'Playfair Display', serif;
 }
 .action-panel:hover {
     border-color: var(--gold); transform: translateY(-5px);
     box-shadow: 0 20px 45px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow), inset 0 0 20px rgba(212,175,55,0.05);
 }
 .panel-header {
-    margin-top: -10px !important; /* Esto "tira" el título hacia arriba para cerrar el hueco */
-    margin-bottom: 20px !important;
+    font-family: 'Playfair Display', serif; font-size: 18px; color: var(--ivory); letter-spacing: 1px;
+    margin-top: -10px !important; margin-bottom: 22px !important; position: relative; z-index: 1;
 }
 
 /* Reglas Visibles */
 .rules-container {
-    background: rgba(20, 18, 28, 0.6); border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 12px; padding: 25px; margin-top: 40px; border-left: 4px solid var(--gold);
+    background: rgba(15, 20, 17, 0.65); border: 1px solid var(--panel-border-soft);
+    border-radius: var(--radius-md); padding: 26px 28px; margin-top: 40px; border-left: 3px solid var(--gold);
 }
-.rules-title { font-family: 'Playfair Display', serif; color: white; font-size: 20px; margin-bottom: 15px; }
-.rules-text { font-size: 14.5px; color: var(--text-muted); line-height: 1.6; }
-.rules-text strong { color: var(--gold); }
+.rules-title { font-family: 'Playfair Display', serif; color: var(--ivory); font-size: 19px; margin-bottom: 15px; letter-spacing: 0.5px; }
+.rules-text { font-size: 14px; color: var(--text-muted); line-height: 1.75; }
+.rules-text strong { color: var(--gold); font-weight: 700; }
 
 /* Inputs y Botones */
 div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
-    color: var(--text-muted) !important; font-size: 12px !important; letter-spacing: 1.5px !important; text-transform: uppercase;
+    color: var(--text-muted) !important; font-size: 11.5px !important; letter-spacing: 1.8px !important; text-transform: uppercase;
 }
 .stTextInput input, .stNumberInput input {
-    background-color: #100e16 !important; color: white !important;
-    border: 1px solid rgba(255,255,255,0.1) !important; border-radius: 8px !important;
+    background-color: #0d120f !important; color: var(--ivory) !important;
+    border: 1px solid var(--panel-border-soft) !important; border-radius: 8px !important;
     padding: 14px !important; transition: all 0.3s ease !important;
 }
 .stTextInput input:focus, .stNumberInput input:focus {
     border-color: var(--gold-bright) !important; box-shadow: 0 0 12px var(--gold-glow) !important;
 }
 .stButton button {
-    background: linear-gradient(90deg, #b08d29 0%, var(--gold-bright) 100%) !important;
-    color: #111 !important; font-family: 'Playfair Display', serif !important; font-weight: 800 !important; 
-    letter-spacing: 2px !important; border: none !important; border-radius: 8px !important; 
-    padding: 24px 15px !important; transition: all 0.3s ease !important; width: 100%; 
+    background: linear-gradient(90deg, #8a6f2c 0%, var(--gold) 45%, var(--gold-bright) 100%) !important;
+    color: #14100a !important; font-family: 'Playfair Display', serif !important; font-weight: 800 !important;
+    letter-spacing: 2.2px !important; border: none !important; border-radius: 8px !important;
+    padding: 22px 15px !important; transition: all 0.3s ease !important; width: 100%;
     box-shadow: 0 8px 20px rgba(0,0,0,0.5), 0 0 15px var(--gold-glow) !important; text-transform: uppercase;
 }
 .stButton button:hover {
     transform: scale(1.02) !important; box-shadow: 0 12px 25px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow) !important;
-    filter: brightness(1.1);
+    filter: brightness(1.08);
+}
+.stButton button:disabled {
+    background: linear-gradient(90deg, #2a2a28, #3a3a36) !important; color: var(--text-muted) !important;
+    box-shadow: none !important;
 }
 
 /* =====================================================
@@ -164,19 +264,19 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
     display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin: 20px 0 10px;
 }
 .player-slot {
-    width: 160px; padding: 18px 10px; border-radius: 14px; text-align: center;
-    background: rgba(20,18,28,0.55); border: 1.5px dashed rgba(255,255,255,0.15);
+    width: 160px; padding: 18px 10px; border-radius: var(--radius-md); text-align: center;
+    background: rgba(19,27,22,0.6); border: 1.5px dashed var(--panel-border-soft);
     transition: all 0.4s ease; position: relative;
 }
-.player-slot .slot-icon { font-size: 26px; display: block; margin-bottom: 6px; }
+.player-slot .slot-icon { font-size: 24px; display: block; margin-bottom: 6px; }
 .player-slot .slot-name { font-weight: 700; font-size: 14px; color: var(--text-main); }
-.player-slot .slot-role { font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-top: 3px; }
+.player-slot .slot-role { font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); margin-top: 3px; }
 .slot-filled {
-    border: 1.5px solid var(--gold); background: rgba(212,175,55,0.08);
-    box-shadow: 0 0 20px var(--gold-glow), inset 0 0 15px rgba(212,175,55,0.06);
+    border: 1.5px solid var(--gold); background: rgba(201,162,75,0.08);
+    box-shadow: 0 0 20px var(--gold-glow), inset 0 0 15px rgba(201,162,75,0.06);
     animation: slot-pop 0.5s ease;
 }
-.slot-empty { opacity: 0.55; }
+.slot-empty { opacity: 0.5; }
 .slot-empty .slot-name { color: var(--text-muted); font-style: italic; font-weight: 500; }
 .slot-host.slot-filled { border-color: var(--gold-bright); }
 @keyframes slot-pop {
@@ -185,14 +285,14 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
     100% { transform: scale(1); opacity: 1; }
 }
 .progress-track {
-    width: 280px; height: 10px; margin: 14px auto 4px; border-radius: 10px;
-    background: rgba(255,255,255,0.08); overflow: hidden; border: 1px solid rgba(255,255,255,0.08);
+    width: 280px; height: 8px; margin: 16px auto 4px; border-radius: 10px;
+    background: rgba(255,255,255,0.06); overflow: hidden; border: 1px solid var(--panel-border-soft);
 }
 .progress-fill {
-    height: 100%; border-radius: 10px; background: linear-gradient(90deg, #b08d29, var(--gold-bright));
+    height: 100%; border-radius: 10px; background: linear-gradient(90deg, var(--emerald), var(--gold-bright));
     transition: width 0.6s cubic-bezier(0.25,0.8,0.25,1); box-shadow: 0 0 12px var(--gold-glow);
 }
-.progress-caption { text-align: center; font-size: 12.5px; color: var(--text-muted); letter-spacing: 1px; margin-bottom: 10px; }
+.progress-caption { text-align: center; font-size: 12px; color: var(--text-muted); letter-spacing: 1.2px; margin-bottom: 10px; text-transform: uppercase; }
 
 /* =====================================================
    TÓMBOLA DECORATIVA (bolitas flotando dentro del globo)
@@ -200,8 +300,8 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
 .tombola-decor-wrap { display: flex; justify-content: center; margin: 6px 0 22px; }
 .tombola-globe {
     width: 130px; height: 130px; border-radius: 50%; position: relative;
-    background: radial-gradient(circle at 35% 25%, rgba(255,255,255,0.10), rgba(20,18,30,0.35) 65%);
-    border: 2px solid rgba(212,175,55,0.35);
+    background: radial-gradient(circle at 35% 25%, rgba(255,255,255,0.09), rgba(15,20,17,0.4) 65%);
+    border: 2px solid var(--panel-border);
     box-shadow: inset 0 0 25px rgba(0,0,0,0.5), 0 0 30px var(--gold-glow);
     overflow: hidden;
 }
@@ -211,10 +311,10 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
     animation: float-in-globe 3.4s ease-in-out infinite;
 }
-.mini-ball:nth-child(1) { left: 15px; top: 20px; animation-delay: 0s; background: radial-gradient(circle at 30% 30%, #fff, #d9455a 75%); }
+.mini-ball:nth-child(1) { left: 15px; top: 20px; animation-delay: 0s; background: radial-gradient(circle at 30% 30%, #fff, var(--ruby-bright) 75%); }
 .mini-ball:nth-child(2) { left: 70px; top: 15px; animation-delay: 0.6s; background: radial-gradient(circle at 30% 30%, #fff, #3d8ee0 75%); }
 .mini-ball:nth-child(3) { left: 40px; top: 55px; animation-delay: 1.1s; }
-.mini-ball:nth-child(4) { left: 85px; top: 60px; animation-delay: 1.7s; background: radial-gradient(circle at 30% 30%, #fff, #4bbf7a 75%); }
+.mini-ball:nth-child(4) { left: 85px; top: 60px; animation-delay: 1.7s; background: radial-gradient(circle at 30% 30%, #fff, var(--emerald-bright) 75%); }
 .mini-ball:nth-child(5) { left: 20px; top: 80px; animation-delay: 2.2s; background: radial-gradient(circle at 30% 30%, #fff, #b96bd6 75%); }
 @keyframes float-in-globe {
     0%, 100% { transform: translate(0,0); }
@@ -225,6 +325,128 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
 .tombola-remaining-badge {
     text-align: center; font-size: 12px; letter-spacing: 1.5px; color: var(--gold);
     text-transform: uppercase; margin-top: 8px; font-weight: 700;
+}
+
+/* =====================================================
+   TARJETA DE VIDRIO (sala de espera / turnos / plaquetas)
+   ===================================================== */
+.glass-card {
+    background: linear-gradient(160deg, rgba(255,255,255,0.035), rgba(255,255,255,0.008)), var(--panel-bg);
+    border: 1px solid var(--panel-border-soft);
+    border-radius: var(--radius-lg); padding: 36px 34px;
+    box-shadow: 0 20px 45px var(--shadow-deep), inset 0 1px 0 rgba(255,255,255,0.04);
+    text-align: center; margin-bottom: 22px;
+}
+.plaque-eyebrow {
+    display: inline-block; font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--gold); border: 1px solid var(--panel-border); padding: 5px 18px; border-radius: 20px;
+    margin-bottom: 18px; background: rgba(201,162,75,0.06); font-weight: 700;
+}
+.room-code-display {
+    font-family: 'Playfair Display', serif; font-size: 40px; letter-spacing: 12px;
+    color: var(--ivory); font-weight: 700; margin: 6px 0 2px;
+}
+.bet-readout { font-size: 14.5px; color: var(--text-muted); margin-top: 12px; letter-spacing: 0.4px; }
+.bet-readout strong { color: var(--gold-bright); }
+
+/* Turno privado / traspaso de pantalla */
+.handoff-card { padding-top: 12px; }
+.handoff-icon { font-size: 42px; margin-bottom: 10px; filter: drop-shadow(0 0 12px var(--gold-glow)); }
+.handoff-card h2 { font-family: 'Playfair Display', serif; color: var(--ivory); font-size: 25px; margin: 4px 0 10px; }
+.handoff-card p { color: var(--text-muted); font-size: 14px; }
+.handoff-warning { color: var(--ruby-bright) !important; font-weight: 700; letter-spacing: 0.3px; }
+
+/* Fichas de cambios restantes */
+.pips-wrap {
+    text-align: center; font-size: 12.5px; color: var(--text-muted); letter-spacing: 1.2px;
+    margin: 16px 0; text-transform: uppercase; font-weight: 600;
+}
+.pip-dot {
+    display: inline-block; width: 11px; height: 11px; border-radius: 50%;
+    border: 1.5px solid var(--gold-dim); margin: 0 4px; vertical-align: middle;
+}
+.pip-filled {
+    background: radial-gradient(circle at 30% 30%, var(--gold-bright), var(--gold));
+    border-color: var(--gold-bright); box-shadow: 0 0 8px var(--gold-glow);
+}
+
+/* Estado de la mesa (pastillas de turno) */
+.mesa-estado { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 18px 0 28px; }
+.status-pill {
+    font-size: 12.5px; padding: 8px 17px; border-radius: 30px; letter-spacing: 0.4px;
+    border: 1px solid transparent; font-weight: 700;
+}
+.pill-wait { background: rgba(255,255,255,0.03); color: var(--text-muted); border-color: var(--panel-border-soft); }
+.pill-active {
+    background: rgba(201,162,75,0.12); color: var(--gold-bright); border-color: var(--gold);
+    animation: pill-glow 1.8s ease-in-out infinite;
+}
+@keyframes pill-glow {
+    0%, 100% { box-shadow: 0 0 8px var(--gold-glow); }
+    50% { box-shadow: 0 0 20px var(--gold-glow); }
+}
+.pill-done { background: rgba(31,122,83,0.15); color: var(--emerald-bright); border-color: var(--emerald); }
+
+/* Resultados finales */
+.results-banner {
+    text-align: center; font-family: 'Playfair Display', serif; font-size: 25px; color: var(--gold-bright);
+    background: linear-gradient(180deg, rgba(201,162,75,0.10), transparent);
+    border: 1px solid var(--panel-border); border-radius: var(--radius-lg);
+    padding: 20px; margin: 10px 0 30px; text-shadow: 0 0 18px var(--gold-glow); font-weight: 700;
+}
+.tie-banner { color: var(--ivory); }
+
+.reveal-grid { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; margin-bottom: 20px; }
+.reveal-card {
+    width: 190px; padding: 24px 14px; border-radius: var(--radius-md); text-align: center;
+    background: var(--panel-bg); border: 1px solid var(--panel-border-soft);
+    animation: reveal-in 0.5s ease both; box-shadow: 0 12px 30px var(--shadow-deep);
+}
+@keyframes reveal-in {
+    0% { opacity: 0; transform: translateY(16px) scale(0.95); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.reveal-name { font-weight: 700; font-size: 15px; color: var(--ivory); margin-bottom: 4px; }
+.reveal-number { font-family: 'Playfair Display', serif; font-size: 36px; color: var(--gold-bright); margin: 4px 0; }
+.reveal-distance { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px; }
+.reveal-badge { display: inline-block; font-size: 11px; padding: 5px 15px; border-radius: 20px; font-weight: 700; letter-spacing: 0.5px; }
+.reveal-card.winner { border-color: var(--gold); box-shadow: 0 0 30px var(--gold-glow), 0 12px 30px var(--shadow-deep); }
+.reveal-card.winner .reveal-badge { background: rgba(201,162,75,0.16); color: var(--gold-bright); border: 1px solid var(--gold); }
+.reveal-card.tie .reveal-badge { background: rgba(255,255,255,0.06); color: var(--ivory); border: 1px solid var(--panel-border-soft); }
+.reveal-card.lost { opacity: 0.62; }
+.reveal-card.lost .reveal-badge { background: rgba(156,43,62,0.14); color: var(--ruby-bright); border: 1px solid var(--ruby); }
+
+/* Ficha/tag de jugador genérico (roster) */
+.roster-wrap { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 10px 0; }
+.player-tag { font-size: 12.5px; padding: 6px 15px; border-radius: 20px; border: 1px solid var(--panel-border-soft); background: rgba(255,255,255,0.03); color: var(--text-main); }
+.tag-host { border-color: var(--gold); color: var(--gold-bright); }
+.empty-hint { color: var(--text-muted); font-style: italic; font-size: 13px; }
+
+/* Ticker tipo pantalla LED de casino */
+.ticker-bar {
+    margin-top: 32px; overflow: hidden; border-top: 1px solid var(--panel-border-soft);
+    border-bottom: 1px solid var(--panel-border-soft); background: rgba(0,0,0,0.28); padding: 11px 0;
+}
+.ticker-track {
+    display: inline-flex; white-space: nowrap; animation: ticker-scroll 30s linear infinite;
+    font-family: 'Space Mono', monospace; font-size: 12px; letter-spacing: 1px; color: var(--gold-bright);
+}
+.ticker-item { padding: 0 16px; }
+.ticker-dot { color: var(--gold-dim); }
+@keyframes ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+}
+
+/* Confeti de victoria */
+.confetti-wrap { position: relative; height: 0; }
+.confetti-piece {
+    position: fixed; top: -10px; width: 9px; height: 14px; opacity: 0.9; z-index: 9999;
+    border-radius: 2px; animation: confetti-fall 3.2s ease-in forwards;
+}
+@keyframes confetti-fall {
+    0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
 }
 """
 
@@ -329,11 +551,20 @@ def iniciar_ronda():
     })
     
     st.session_state.turn_revealed = False
+    st.session_state.phase = "playing"  # transición instantánea en tu pantalla; el resto sincroniza solo en segundos
     log_event(f"¡La ronda comienza! Apuesta fijada en 🪙 {st.session_state.bet_amount}.", icon="🎬")
 
 def guardar_estado_jugador(nombre, datos_a_actualizar):
     ref = get_sala_ref().child(f'jugadores/{nombre}')
     ref.update(datos_a_actualizar)
+
+def rerun_app():
+    """Fuerza un rerun de TODA la app (no solo del fragmento en vivo).
+    Se usa al salir de la sala, ya que esa decisión vive fuera del fragmento."""
+    try:
+        st.rerun(scope="app")
+    except TypeError:
+        st.rerun()
 
 
 # =========================================================
@@ -355,6 +586,27 @@ def ball_widget(number=None, subtitle=None, size=190, animate=False):
     </div>
     """
     
+def render_top_ribbon():
+    """Cinta superior de marca. Cuando hay una sala activa, muestra también
+    el código de sala y un indicador 'EN VIVO' que reemplaza a los antiguos
+    botones de 'Actualizar' — la mesa ahora se sincroniza sola en segundo plano."""
+    en_sala = st.session_state.room_code is not None
+    lado_derecho = (
+        f"<span class='room-chip-badge'>MESA {st.session_state.room_code}</span>"
+        "<span class='live-badge'><span class='live-dot'></span>En vivo</span>"
+        if en_sala else
+        "<span class='live-badge' style='color:var(--text-muted);'>Casino privado</span>"
+    )
+    st.markdown(
+        f"""
+        <div class='top-ribbon'>
+            <div class='brand-mark'><b>TÓMBOLA</b> 30 · CASINO PRIVADO</div>
+            <div style='display:flex; align-items:center; gap:14px;'>{lado_derecho}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 def render_header(subtitle=None):
     st.markdown(
         """
@@ -378,7 +630,7 @@ def render_roster():
         if datos.get("is_host"):
             chips += f"<span class='player-tag tag-host'>👑 {nombre} (Anfitrión)</span>"
         else:
-            chips += f"<span class='player-tag tag-player'>🎮 {nombre}</span>"
+            chips += f"<span class='player-tag tag-player'>🃏 {nombre}</span>"
             
     if not chips:
         chips = "<span class='empty-hint'>La mesa está vacía.</span>"
@@ -430,14 +682,14 @@ def render_slots_obligatorios():
         if i < len(invitados):
             slots_html += f"""
             <div class='player-slot slot-filled'>
-                <span class='slot-icon'>🎮</span>
+                <span class='slot-icon'>🃏</span>
                 <div class='slot-name'>{invitados[i]}</div>
                 <div class='slot-role'>Invitado {i + 1}</div>
             </div>"""
         else:
             slots_html += f"""
             <div class='player-slot slot-empty'>
-                <span class='slot-icon'>🎮</span>
+                <span class='slot-icon'>🃏</span>
                 <div class='slot-name'>Esperando...</div>
                 <div class='slot-role'>Invitado {i + 1}</div>
             </div>"""
@@ -682,35 +934,41 @@ def render_waiting_room():
     n_jugadores = len(st.session_state.players)
     completa = n_jugadores == JUGADORES_REQUERIDOS
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🔄 Actualizar lista", use_container_width=True):
-            sincronizar_datos()
+    if usuario["is_host"]:
+        if st.button("🚀 Iniciar Ronda", use_container_width=True, disabled=not completa):
+            iniciar_ronda()
             st.rerun()
-            
-    with col2:
-        if usuario["is_host"]:
-            if st.button("🚀 Iniciar Ronda", use_container_width=True, disabled=not completa):
-                iniciar_ronda()
-                st.rerun()
-        else:
-            st.button("⏳ Esperando al Anfitrión...", use_container_width=True, disabled=True)
+    else:
+        st.button("⏳ Esperando al Anfitrión...", use_container_width=True, disabled=True)
 
     if not completa:
         faltan = JUGADORES_REQUERIDOS - n_jugadores
-        st.info(f"🙋 Faltan **{faltan}** jugador(es) para completar la mesa. Se necesitan exactamente {JUGADORES_REQUERIDOS}.")
+        st.info(f"🙋 Faltan **{faltan}** jugador(es) para completar la mesa. La mesa se actualiza sola apenas se unan — no necesitas refrescar nada.")
             
     st.markdown("</div>", unsafe_allow_html=True)
 
 def render_lobby_phase():
+    """Pantalla de acceso (crear/unirse). Se muestra SIN auto-refresco para no
+    interrumpir al usuario mientras escribe su nombre o el código de sala."""
     render_header("Conecta a todos tus amigos")
-    
-    if st.session_state.room_code is None:
-        render_login()
-    else:
-        render_waiting_room()
-        
+    render_login()
     render_ticker()
+
+
+@_fragment(run_every=SEGUNDOS_ENTRE_SINCRONIZACIONES)
+def render_mesa_en_vivo():
+    """Fragmento autónomo: sincroniza la sala con Firebase cada pocos segundos
+    y solo redibuja esta porción de la pantalla — sin recargar toda la página
+    ni requerir botones de 'Actualizar'. Esto reemplaza el refresco manual."""
+    fase = st.session_state.phase
+    if fase == "lobby":
+        render_header("Sala de espera")
+        render_waiting_room()
+        render_ticker()
+    elif fase == "playing":
+        render_playing_phase()
+    elif fase == "results":
+        render_results_phase()
 
 
 # =========================================================
@@ -807,9 +1065,11 @@ def render_playing_phase():
                     nuevo_idx = st.session_state.turn_index + 1
                     ref_sala = get_sala_ref()
                     ref_sala.update({'turno_actual_index': nuevo_idx})
+                    st.session_state.turn_index = nuevo_idx
                     
                     if nuevo_idx >= len(orden):
                         ref_sala.update({'fase': 'results'})
+                        st.session_state.phase = "results"
                         
                     st.session_state.turn_revealed = False
                     st.rerun()
@@ -826,9 +1086,11 @@ def render_playing_phase():
             """,
             unsafe_allow_html=True,
         )
-        st.divider()
-        if st.button("🔄 Sincronizar", use_container_width=True):
-            st.rerun()
+        st.markdown(
+            "<p style='text-align:center; color:var(--text-muted); font-size:12.5px; "
+            "letter-spacing:0.5px;'>La mesa se actualiza sola — no necesitas hacer nada.</p>",
+            unsafe_allow_html=True,
+        )
 
     render_ticker()
 
@@ -871,9 +1133,7 @@ def render_results_phase():
     
     resultados, ganadores = calcular_resultados()
     if not resultados:
-        st.warning("Esperando resultados...")
-        if st.button("🔄 Actualizar", use_container_width=True):
-            st.rerun()
+        st.warning("Esperando resultados... la mesa se actualizará sola en unos segundos.")
         return
 
     if len(ganadores) == 1:
@@ -901,21 +1161,17 @@ def render_results_phase():
     st.markdown(html, unsafe_allow_html=True)
 
     st.divider()
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔄 Actualizar Pantalla", use_container_width=True):
+    usuario = st.session_state.current_user
+    if usuario["is_host"]:
+        if st.button("🔁 Jugar Nueva Ronda", use_container_width=True):
+            get_sala_ref().update({'fase': 'lobby'})
+            st.session_state.phase = "lobby"
             st.rerun()
-    with c2:
-        usuario = st.session_state.current_user
-        if usuario["is_host"]:
-            if st.button("🔁 Jugar Nueva Ronda", use_container_width=True):
-                get_sala_ref().update({'fase': 'lobby'})
-                st.rerun()
-        else:
-            if st.button("🚪 Salir de la sala", use_container_width=True):
-                st.session_state.room_code = None
-                st.session_state.current_user = None
-                st.rerun()
+    else:
+        if st.button("🚪 Salir de la sala", use_container_width=True):
+            st.session_state.room_code = None
+            st.session_state.current_user = None
+            rerun_app()
 
     render_ticker()
 
@@ -925,14 +1181,14 @@ def render_results_phase():
 def main():
     init_state()
     inject_css()
+    render_top_ribbon()
 
-    fase = st.session_state.phase
-    if fase == "lobby":
+    if st.session_state.room_code is None:
+        # Aún no hay sala: pantalla estática de acceso (sin auto-refresco).
         render_lobby_phase()
-    elif fase == "playing":
-        render_playing_phase()
-    elif fase == "results":
-        render_results_phase()
+    else:
+        # Ya está en una sala: la mesa se mantiene sincronizada sola.
+        render_mesa_en_vivo()
 
 if __name__ == "__main__":
     main()
