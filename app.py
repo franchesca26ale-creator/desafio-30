@@ -20,7 +20,7 @@ if not firebase_admin._apps:
     firebase_credentials = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_credentials)
     firebase_admin.initialize_app(cred, {
-        'databaseURL': 'https://bola30-64b83-default-rtdb.firebaseio.com/'
+        'databaseURL': 'https://bola30-64b83-default-rtdb.firebaseio.com'
     })
 
 # =========================================================
