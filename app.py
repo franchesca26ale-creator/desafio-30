@@ -416,6 +416,7 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
 
 /* Monto ganado/perdido dentro de cada tarjeta de jugador */
 .reveal-amount { font-size: 15px; font-weight: 800; margin: 6px 0 4px; letter-spacing: 0.3px; }
+.reveal-amount-privado { font-size: 12px; font-weight: 600; color: var(--text-muted); font-style: italic; margin: 6px 0 4px; }
 .amount-positive { color: var(--emerald-bright); }
 .amount-negative { color: var(--ruby-bright); }
 .amount-neutral { color: var(--text-muted); }
@@ -1013,7 +1014,7 @@ def render_login():
             • <strong>La Tómbola:</strong> Bolitas del 1 al 60 (Muestreo sin reposición).<br>
             • <strong>Tu Turno:</strong> Juega en secreto. Saca una bolita y decide: ¿te plantas o pides otra?<br>
             • <strong>Los Cambios:</strong> Puedes cambiar de bolita máximo 2 veces, pero la anterior se descarta para siempre.<br>
-            • <strong>Premios:</strong> La casa retiene el 50% del pozo total. El ganador se queda con el 50% restante: recupera su apuesta y gana medio B extra. En caso de empate, ese 50% se reparte entre los empatados.
+            • <strong>Premios:</strong> El ganador se lleva el <strong>doble</strong> de lo apostado. La casa se queda con 1/3 del pozo total. En caso de empate, los empatados recuperan justo su apuesta y la casa se queda con el resto.
         </div>
     </div>
     """), unsafe_allow_html=True)
@@ -1202,24 +1203,20 @@ def render_playing_phase():
 # =========================================================
 # FASE 3 · RESULTADOS
 # =========================================================
-COMISION_CASA = 0.5  # La casa retiene el 50% del pozo total, según el modelo del proyecto.
-
 def calcular_resultados():
     """
-    Calcula el resultado económico de la ronda según el modelo matemático real
-    del proyecto (no el "juego justo" de comisión 0%, que solo se usa para la
-    demostración teórica de E[Jugador] = 0):
+    Calcula el resultado económico de la ronda según la regla del proyecto:
 
-        Pozo total          = apuesta * JUGADORES_REQUERIDOS   (3B)
-        Comision de la casa = Pozo total * COMISION_CASA        (1.5B con 50%)
-        Pozo de premios     = Pozo total - Comision             (1.5B con 50%)
-        Cada ganador recibe = Pozo de premios / n de ganadores
-
-    Con un solo ganador: recibe 1.5B -> neto +0.5B (recupera su apuesta y gana
-    la mitad extra), tal como esta documentado. En caso de empate, el pozo de
-    premios (ya con la comision descontada) se reparte en partes iguales entre
-    los empatados, asi el 50% de comision se aplica siempre, sin excepciones
-    que rompan la coherencia del modelo.
+        - Los 3 jugadores apuestan el mismo monto B. Pozo total = 3B.
+        - Un solo ganador (menor distancia a 30): se lleva el DOBLE de lo
+          apostado (2B) -> recupera su apuesta y gana B extra neto. Los
+          otros 2 pierden su apuesta completa (-B cada uno). La casa se
+          queda con lo que sobra: 3B - 2B = B, es decir 1/3 del pozo.
+        - Empate a 2: cada empatado recupera exactamente su apuesta (neto
+          0) y el único que pierde aporta su apuesta completa a la casa
+          (de nuevo, B = 1/3 del pozo).
+        - Empate a 3 (caso extremo, sin perdedor): cada uno recupera su
+          apuesta exacta (neto 0) y no queda nada para la casa.
     """
     jugadores = {n: p for n, p in st.session_state.players.items() if p.get("final_number") is not None}
     if not jugadores:
@@ -1231,18 +1228,24 @@ def calcular_resultados():
 
     apuesta = st.session_state.bet_amount
     pozo_total = apuesta * JUGADORES_REQUERIDOS
-    comision_monto = pozo_total * COMISION_CASA
-    pozo_premios = pozo_total - comision_monto
-    recibe_cada_ganador = pozo_premios / len(ganadores)
+
+    if len(ganadores) == 1:
+        pagos = {ganadores[0]: apuesta * 2}
+    else:
+        pagos = {nombre: apuesta for nombre in ganadores}
+
+    monto_repartido = sum(pagos.values())
+    comision_monto = pozo_total - monto_repartido
 
     resultados = {}
     for nombre in jugadores:
-        if nombre in ganadores:
-            estado = "GANADOR" if len(ganadores) == 1 else "EMPATE"
-            recibe = recibe_cada_ganador
+        recibe = pagos.get(nombre, 0)
+        if len(ganadores) == 1 and nombre == ganadores[0]:
+            estado = "GANADOR"
+        elif nombre in ganadores:
+            estado = "EMPATE"
         else:
             estado = "PERDIÓ"
-            recibe = 0
 
         neto = recibe - apuesta
         resultados[nombre] = {
@@ -1256,7 +1259,7 @@ def calcular_resultados():
     economia_mesa = {
         "pozo_total": pozo_total,
         "comision_monto": comision_monto,
-        "pozo_premios": pozo_premios,
+        "pozo_premios": monto_repartido,
         "apuesta": apuesta,
     }
     return resultados, ganadores, economia_mesa
@@ -1292,7 +1295,7 @@ def render_resumen_economico_estatico(economia):
             <div class='resumen-valor-estatico'>🪙 {pozo_total}</div>
         </div>
         <div class='resumen-item-estatico com'>
-            <div class='resumen-label-estatico'>La casa se lleva (50%)</div>
+            <div class='resumen-label-estatico'>La casa se lleva</div>
             <div class='resumen-valor-estatico'>🪙 {comision}</div>
         </div>
         <div class='resumen-item-estatico pre'>
@@ -1310,7 +1313,7 @@ def mensaje_personal_final(mi_neto) -> str:
     if mi_neto > 0:
         return f"🏆 ¡Ganaste 🪙 {formatear_monto(mi_neto).replace('+', '')} fichas! La mesa te espera para defender tu suerte."
     elif mi_neto < 0:
-        return f"😅 Esta ronda la casa se quedó con 🪙 {formatear_monto(abs(mi_neto)).replace('+', '')} tuyos. Es pura probabilidad — ¿vas por la revancha?"
+        return f"😅 Esta ronda perdiste 🪙 {formatear_monto(abs(mi_neto)).replace('+', '')} fichas. Es pura probabilidad — ¿vas por la revancha?"
     else:
         return "🤝 Recuperaste justo tu apuesta. ¡Vuelve a intentarlo, la próxima puede ser toda tuya!"
 
@@ -1390,6 +1393,9 @@ _PLANTILLA_REVELACION = """
       font-size:10px; color:#96907f; text-transform:uppercase; letter-spacing:.4px; margin:6px 0 10px;
     }
     .back-monto { font-size:15px; font-weight:800; }
+    .back-monto-privado {
+      font-size:11px; font-weight:600; color:#6b6a63; letter-spacing:.4px; font-style:italic;
+    }
     .monto-pos { color:#38b47f; }
     .monto-neg { color:#d1546a; }
     .monto-neutro { color:#96907f; }
@@ -1641,6 +1647,10 @@ def render_revelacion_dramatica(resultados, ganadores, economia, mi_nombre):
             else "❌ PIERDE"
         )
         clase_monto = "monto-pos" if r["neto"] > 0 else ("monto-neg" if r["neto"] < 0 else "monto-neutro")
+        if nombre == mi_nombre:
+            monto_html = f'<div class="back-monto {clase_monto}" data-monto="{r["neto"]}">🪙 --</div>'
+        else:
+            monto_html = '<div class="back-monto-privado">🔒 Privado</div>'
         tarjetas.append(f"""
         <div class="tarjeta-slot">
           <div class="nombre-placa">{nombre}{etiqueta_mio}</div>
@@ -1653,7 +1663,7 @@ def render_revelacion_dramatica(resultados, ganadores, economia, mi_nombre):
               <div class="flip-face flip-back">
                 <div class="back-numero">{r['numero']}</div>
                 <div class="back-distancia">Distancia a 30 → {r['distancia']}</div>
-                <div class="back-monto {clase_monto}" data-monto="{r['neto']}">🪙 --</div>
+                {monto_html}
                 <div class="back-badge">{badge_txt}</div>
               </div>
             </div>
@@ -1727,12 +1737,17 @@ def render_results_phase():
         for i, (nombre, r) in enumerate(orden):
             neto = r["neto"]
             clase_monto = "amount-positive" if neto > 0 else ("amount-negative" if neto < 0 else "amount-neutral")
+            monto_div = (
+                f"<div class='reveal-amount {clase_monto}'>🪙 {formatear_monto(neto)}</div>"
+                if nombre == mi_nombre
+                else "<div class='reveal-amount-privado'>🔒 Privado</div>"
+            )
             html += (
                 f"<div class='reveal-card {clases[r['estado']]}' style='animation-delay:{i * 0.15}s'>"
                 f"<div class='reveal-name'>{nombre}</div>"
                 f"<div class='reveal-number'>{r['numero']}</div>"
                 f"<div class='reveal-distance'>Distancia a 30 → {r['distancia']}</div>"
-                f"<div class='reveal-amount {clase_monto}'>🪙 {formatear_monto(neto)}</div>"
+                f"{monto_div}"
                 f"<div class='reveal-badge'>{badges[r['estado']]}</div>"
                 "</div>"
             )
