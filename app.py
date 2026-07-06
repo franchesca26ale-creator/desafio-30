@@ -199,25 +199,28 @@ div[data-testid="stAlert"] {
     background: rgba(201,162,75,0.05); text-transform: uppercase; font-weight: 700;
 }
 
-/* Paneles Interactivos (Efecto Hover Iluminado) */
-.action-panel {
+/* Paneles Interactivos (Efecto Hover Iluminado)
+   Usamos st.container(key=...) en vez de un <div> suelto para que el
+   resplandor / hover realmente envuelva los inputs y el botón de adentro,
+   y no solo el título flotando por separado. */
+div.st-key-panel_crear_sala, div.st-key-panel_unirse_sala {
     position: relative; overflow: hidden;
     background: linear-gradient(165deg, rgba(255,255,255,0.03), rgba(255,255,255,0.005)), var(--panel-bg);
     border: 1px solid var(--panel-border-soft);
     border-radius: var(--radius-lg); padding: 32px; transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-    box-shadow: 0 15px 35px rgba(0,0,0,0.4); height: 100%;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.4);
 }
-.action-panel::before {
+div.st-key-panel_crear_sala::before, div.st-key-panel_unirse_sala::before {
     content: '♠'; position: absolute; right: -16px; bottom: -34px; font-size: 130px;
     color: rgba(201,162,75,0.045); pointer-events: none; font-family: 'Playfair Display', serif;
 }
-.action-panel:hover {
+div.st-key-panel_crear_sala:hover, div.st-key-panel_unirse_sala:hover {
     border-color: var(--gold); transform: translateY(-5px);
     box-shadow: 0 20px 45px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow), inset 0 0 20px rgba(212,175,55,0.05);
 }
 .panel-header {
     font-family: 'Playfair Display', serif; font-size: 18px; color: var(--ivory); letter-spacing: 1px;
-    margin-top: -10px !important; margin-bottom: 22px !important; position: relative; z-index: 1;
+    margin-top: -6px !important; margin-bottom: 18px !important; position: relative; z-index: 1;
 }
 
 /* Reglas Visibles */
@@ -438,6 +441,29 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
     100% { transform: translateX(-50%); }
 }
 
+/* Bolita ya asentada (se muestra en los refrescos automáticos posteriores
+   al primer giro, para no repetir la animación una y otra vez) */
+.reveal-settled-wrap {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 18px 0 6px;
+}
+.chute-mini {
+    width: 14px; height: 34px; background: linear-gradient(180deg, #3a3550, #100e16);
+    border-radius: 6px 6px 0 0; margin-bottom: -6px; box-shadow: 0 0 10px rgba(212,175,55,0.4);
+}
+.reveal-settled-ball {
+    width: 150px; height: 150px; border-radius: 50%; position: relative;
+    background: radial-gradient(circle at 32% 28%, #ffffff, #f4e4b8 35%, var(--gold) 78%, var(--gold-dim) 100%);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55), 0 0 55px var(--gold-glow);
+    border: 2px solid rgba(255,215,0,0.55);
+    display: flex; align-items: center; justify-content: center;
+}
+.reveal-settled-num { font-weight: 800; font-size: 46px; color: #161219; letter-spacing: -1px; }
+.reveal-settled-caption {
+    margin-top: 16px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--text-muted); font-weight: 600;
+}
+
 /* Confeti de victoria */
 .confetti-wrap { position: relative; height: 0; }
 .confetti-piece {
@@ -452,6 +478,15 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
 
 def inject_css():
     st.markdown("<style>" + CSS_STYLES + "</style>", unsafe_allow_html=True)
+
+def _html(bloque: str) -> str:
+    """Aplana un bloque HTML multilínea (escrito con sangría para que se lea
+    bien en el código) en una sola línea continua antes de pasarlo a
+    st.markdown. Streamlit/Markdown interpreta líneas con sangría — o líneas
+    en blanco intercaladas — como bloques de código en vez de HTML, lo que
+    hacía que partes de la interfaz se mostraran como texto crudo en vez de
+    renderizarse. Uniendo todo en una sola línea se evita ese problema."""
+    return "".join(linea.strip() for linea in bloque.strip("\n").splitlines())
 
 
 # =========================================================
@@ -552,6 +587,10 @@ def iniciar_ronda():
     
     st.session_state.turn_revealed = False
     st.session_state.phase = "playing"  # transición instantánea en tu pantalla; el resto sincroniza solo en segundos
+    # Limpiamos las marcas de "ya giró" de la ronda anterior para que la animación
+    # de la bolita se reproduzca de nuevo en esta ronda nueva.
+    for clave in [k for k in st.session_state.keys() if k.startswith("anim_shown_")]:
+        del st.session_state[clave]
     log_event(f"¡La ronda comienza! Apuesta fijada en 🪙 {st.session_state.bet_amount}.", icon="🎬")
 
 def guardar_estado_jugador(nombre, datos_a_actualizar):
@@ -598,18 +637,18 @@ def render_top_ribbon():
         "<span class='live-badge' style='color:var(--text-muted);'>Casino privado</span>"
     )
     st.markdown(
-        f"""
+        _html(f"""
         <div class='top-ribbon'>
             <div class='brand-mark'><b>TÓMBOLA</b> 30 · CASINO PRIVADO</div>
             <div style='display:flex; align-items:center; gap:14px;'>{lado_derecho}</div>
         </div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
 def render_header(subtitle=None):
     st.markdown(
-        """
+        _html("""
         <div class='floating-ball-wrap'>
             <div class='pool-ball'>
                 <div class='pool-ball-inner'>
@@ -620,7 +659,7 @@ def render_header(subtitle=None):
         <div class='main-title'>TÓMBOLA <span>30</span></div>
         <div class='sub-title'>Juego de Probabilidad · Muestreo Sin Reemplazo</div>
         <div class='academic-badge'>Proyecto Final — Modelos de Probabilidad</div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
     
@@ -663,36 +702,40 @@ def render_slots_obligatorios():
 
     # Slot 1: Anfitrión (siempre primero)
     if host_nombre:
-        slots_html += f"""
-        <div class='player-slot slot-host slot-filled'>
-            <span class='slot-icon'>👑</span>
-            <div class='slot-name'>{host_nombre}</div>
-            <div class='slot-role'>Anfitrión</div>
-        </div>"""
+        slots_html += (
+            "<div class='player-slot slot-host slot-filled'>"
+            "<span class='slot-icon'>👑</span>"
+            f"<div class='slot-name'>{host_nombre}</div>"
+            "<div class='slot-role'>Anfitrión</div>"
+            "</div>"
+        )
     else:
-        slots_html += """
-        <div class='player-slot slot-empty'>
-            <span class='slot-icon'>👑</span>
-            <div class='slot-name'>Esperando...</div>
-            <div class='slot-role'>Anfitrión</div>
-        </div>"""
+        slots_html += (
+            "<div class='player-slot slot-empty'>"
+            "<span class='slot-icon'>👑</span>"
+            "<div class='slot-name'>Esperando...</div>"
+            "<div class='slot-role'>Anfitrión</div>"
+            "</div>"
+        )
 
     # Slots 2 y 3: invitados
     for i in range(JUGADORES_REQUERIDOS - 1):
         if i < len(invitados):
-            slots_html += f"""
-            <div class='player-slot slot-filled'>
-                <span class='slot-icon'>🃏</span>
-                <div class='slot-name'>{invitados[i]}</div>
-                <div class='slot-role'>Invitado {i + 1}</div>
-            </div>"""
+            slots_html += (
+                "<div class='player-slot slot-filled'>"
+                "<span class='slot-icon'>🃏</span>"
+                f"<div class='slot-name'>{invitados[i]}</div>"
+                f"<div class='slot-role'>Invitado {i + 1}</div>"
+                "</div>"
+            )
         else:
-            slots_html += f"""
-            <div class='player-slot slot-empty'>
-                <span class='slot-icon'>🃏</span>
-                <div class='slot-name'>Esperando...</div>
-                <div class='slot-role'>Invitado {i + 1}</div>
-            </div>"""
+            slots_html += (
+                "<div class='player-slot slot-empty'>"
+                "<span class='slot-icon'>🃏</span>"
+                "<div class='slot-name'>Esperando...</div>"
+                f"<div class='slot-role'>Invitado {i + 1}</div>"
+                "</div>"
+            )
 
     slots_html += "</div>"
     st.markdown(slots_html, unsafe_allow_html=True)
@@ -700,10 +743,10 @@ def render_slots_obligatorios():
     n_actual = len(nombres)
     porcentaje = min(100, int((n_actual / JUGADORES_REQUERIDOS) * 100))
     st.markdown(
-        f"""
+        _html(f"""
         <div class='progress-track'><div class='progress-fill' style='width:{porcentaje}%;'></div></div>
         <div class='progress-caption'>{n_actual} / {JUGADORES_REQUERIDOS} jugadores en la mesa</div>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
@@ -711,7 +754,7 @@ def render_tombola_decor(restantes=None):
     """Globo decorativo con bolitas flotando, siempre animado con CSS puro."""
     badge = f"<div class='tombola-remaining-badge'>🎱 {restantes} bolitas restantes en la tómbola</div>" if restantes is not None else ""
     st.markdown(
-        f"""
+        _html(f"""
         <div class='tombola-decor-wrap'>
             <div class='tombola-globe'>
                 <div class='mini-ball'></div>
@@ -722,7 +765,7 @@ def render_tombola_decor(restantes=None):
             </div>
         </div>
         {badge}
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
@@ -731,7 +774,30 @@ def render_extraccion_animada(numero_final: int, contexto: str = "draw"):
     Animación tipo 'tragamonedas': la bolita sale disparada de la tómbola,
     los números giran rápidamente y finalmente se detienen en el número real,
     con una explosión de chispas doradas al asentarse.
+
+    Como la mesa se auto-sincroniza cada pocos segundos (ver render_mesa_en_vivo),
+    esta función se vuelve a llamar en cada ciclo — por eso recordamos en
+    session_state si ESTA bolita en particular ('contexto') ya giró una vez.
+    Si ya giró, mostramos directamente el resultado quieto, sin repetir la
+    animación cada vez que la pantalla se refresca solo.
     """
+    clave_ya_animada = f"anim_shown_{contexto}"
+    if st.session_state.get(clave_ya_animada, False):
+        st.markdown(
+            _html(f"""
+            <div class='reveal-settled-wrap'>
+                <div class='chute-mini'></div>
+                <div class='reveal-settled-ball'>
+                    <span class='reveal-settled-num'>{numero_final}</span>
+                </div>
+                <div class='reveal-settled-caption'>¡Bolita revelada!</div>
+            </div>
+            """),
+            unsafe_allow_html=True,
+        )
+        return
+
+    st.session_state[clave_ya_animada] = True
     uid = f"reveal_{contexto}_{random.randint(0, 10_000_000)}"
     html_code = f"""
     <div id="{uid}" style="width:100%;">
@@ -851,56 +917,56 @@ def render_extraccion_animada(numero_final: int, contexto: str = "draw"):
 ##CREAR SALA
 def render_login():
     col1, col2 = st.columns(2, gap="large")
-    
+
     with col1:
-        st.markdown("<div class='action-panel'><div class='panel-header'>🏠 CREAR SALA</div>", unsafe_allow_html=True)
-        nombre_host = st.text_input("TU NOMBRE", placeholder="Ej: Fran", key="host_name")
-        apuesta = st.number_input("APUESTA OBLIGATORIA", min_value=1000, step=1000, value=2000)
-        
-        if st.button("CREAR SALA ➔", use_container_width=True, key="btn_crear_sala"):
-            if not nombre_host:
-                st.error("Ingresa tu nombre.")
-            else:
-                codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
-                ref = db.reference(f'salas/{codigo}')
-                ref.set({
-                    'fase': 'lobby', 'apuesta': apuesta,
-                    'jugadores': {nombre_host: {'is_host': True, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None}}
-                })
-                st.session_state.room_code = codigo
-                st.session_state.current_user = {"name": nombre_host, "is_host": True}
-                st.rerun()
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        with st.container(key="panel_crear_sala"):
+            st.markdown("<div class='panel-header'>🏠 CREAR SALA</div>", unsafe_allow_html=True)
+            nombre_host = st.text_input("TU NOMBRE", placeholder="Ej: Fran", key="host_name")
+            apuesta = st.number_input("APUESTA OBLIGATORIA", min_value=1000, step=1000, value=2000)
+
+            if st.button("CREAR SALA ➔", use_container_width=True, key="btn_crear_sala"):
+                if not nombre_host:
+                    st.error("Ingresa tu nombre.")
+                else:
+                    codigo = "".join(random.choices(string.ascii_uppercase + string.digits, k=4))
+                    ref = db.reference(f'salas/{codigo}')
+                    ref.set({
+                        'fase': 'lobby', 'apuesta': apuesta,
+                        'jugadores': {nombre_host: {'is_host': True, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None}}
+                    })
+                    st.session_state.room_code = codigo
+                    st.session_state.current_user = {"name": nombre_host, "is_host": True}
+                    st.rerun()
 
     with col2:
-        st.markdown("<div class='action-panel'><div class='panel-header'>🚪 UNIRSE A SALA</div>", unsafe_allow_html=True)
-        nombre_jugador = st.text_input("TU NOMBRE", placeholder="Ej: María", key="player_name")
-        codigo_ingresado = st.text_input("CÓDIGO DE SALA (4 LETRAS)", placeholder="A B C D").upper()
-        
-        if st.button("UNIRSE ➔", use_container_width=True, key="btn_unirse_sala"):
-            if not nombre_jugador or not codigo_ingresado:
-                st.error("Faltan datos.")
-            else:
-                ref = db.reference(f'salas/{codigo_ingresado}')
-                sala_data = ref.get()
-                if not sala_data:
-                    st.error("La sala no existe.")
-                elif nombre_jugador in sala_data.get('jugadores', {}):
-                    st.error("Ese nombre ya está en uso.")
-                elif len(sala_data.get('jugadores', {})) >= JUGADORES_REQUERIDOS:
-                    st.error(f"🚫 La mesa ya está completa ({JUGADORES_REQUERIDOS} jugadores). No puedes entrar a esta sala.")
-                elif sala_data.get('fase', 'lobby') != 'lobby':
-                    st.error("Esta partida ya comenzó, no puedes unirte ahora.")
-                else:
-                    ref.child(f'jugadores/{nombre_jugador}').set({
-                        'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
-                    })
-                    st.session_state.room_code = codigo_ingresado
-                    st.session_state.current_user = {"name": nombre_jugador, 'is_host': False}
-                    st.rerun()
-        st.markdown("</div></div>", unsafe_allow_html=True)
+        with st.container(key="panel_unirse_sala"):
+            st.markdown("<div class='panel-header'>🚪 UNIRSE A SALA</div>", unsafe_allow_html=True)
+            nombre_jugador = st.text_input("TU NOMBRE", placeholder="Ej: María", key="player_name")
+            codigo_ingresado = st.text_input("CÓDIGO DE SALA (4 LETRAS)", placeholder="A B C D").upper()
 
-    st.markdown("""
+            if st.button("UNIRSE ➔", use_container_width=True, key="btn_unirse_sala"):
+                if not nombre_jugador or not codigo_ingresado:
+                    st.error("Faltan datos.")
+                else:
+                    ref = db.reference(f'salas/{codigo_ingresado}')
+                    sala_data = ref.get()
+                    if not sala_data:
+                        st.error("La sala no existe.")
+                    elif nombre_jugador in sala_data.get('jugadores', {}):
+                        st.error("Ese nombre ya está en uso.")
+                    elif len(sala_data.get('jugadores', {})) >= JUGADORES_REQUERIDOS:
+                        st.error(f"🚫 La mesa ya está completa ({JUGADORES_REQUERIDOS} jugadores). No puedes entrar a esta sala.")
+                    elif sala_data.get('fase', 'lobby') != 'lobby':
+                        st.error("Esta partida ya comenzó, no puedes unirte ahora.")
+                    else:
+                        ref.child(f'jugadores/{nombre_jugador}').set({
+                            'is_host': False, 'status': 'pendiente', 'current_ball': None, 'changes_left': CAMBIOS_MAXIMOS, 'final_number': None
+                        })
+                        st.session_state.room_code = codigo_ingresado
+                        st.session_state.current_user = {"name": nombre_jugador, 'is_host': False}
+                        st.rerun()
+
+    st.markdown(_html("""
     <div class='rules-container'>
         <div class='rules-title'>📜 Reglamento Oficial de la Mesa</div>
         <div class='rules-text'>
@@ -912,7 +978,7 @@ def render_login():
             • <strong>Premios:</strong> El ganador duplica su apuesta inicial. ¡Si hay empate exacto, recuperas su dinero!
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
         
 def render_waiting_room():
     sincronizar_datos()
@@ -1014,13 +1080,13 @@ def render_playing_phase():
         # ======= ES MI TURNO =======
         if not st.session_state.turn_revealed and jugador_actual.get("current_ball") is None:
             st.markdown(
-                f"""
+                _html(f"""
                 <div class='glass-card handoff-card'>
                     <div class='handoff-icon'>🔐</div>
                     <h2>¡Es tu turno, {mi_nombre}!</h2>
                     <p class='handoff-warning'>Asegúrate de que nadie esté mirando tu pantalla.</p>
                 </div>
-                """,
+                """),
                 unsafe_allow_html=True,
             )
             if st.button("🔓 Sacar mi primera bolita", use_container_width=True):
@@ -1077,13 +1143,13 @@ def render_playing_phase():
     else:
         # ======= ES TURNO DE OTRO =======
         st.markdown(
-            f"""
+            _html(f"""
             <div class='glass-card handoff-card'>
                 <div class='handoff-icon'>⏳</div>
                 <h2>Turno de {nombre_actual}</h2>
                 <p>Esperando a que saque su bolita y tome una decisión...</p>
             </div>
-            """,
+            """),
             unsafe_allow_html=True,
         )
         st.markdown(
@@ -1149,14 +1215,14 @@ def render_results_phase():
 
     html = "<div class='reveal-grid'>"
     for i, (nombre, r) in enumerate(orden):
-        html += f"""
-        <div class='reveal-card {clases[r['estado']]}' style='animation-delay:{i * 0.15}s'>
-            <div class='reveal-name'>{nombre}</div>
-            <div class='reveal-number'>{r['numero']}</div>
-            <div class='reveal-distance'>Distancia a 30 → {r['distancia']}</div>
-            <div class='reveal-badge'>{badges[r['estado']]}</div>
-        </div>
-        """
+        html += (
+            f"<div class='reveal-card {clases[r['estado']]}' style='animation-delay:{i * 0.15}s'>"
+            f"<div class='reveal-name'>{nombre}</div>"
+            f"<div class='reveal-number'>{r['numero']}</div>"
+            f"<div class='reveal-distance'>Distancia a 30 → {r['distancia']}</div>"
+            f"<div class='reveal-badge'>{badges[r['estado']]}</div>"
+            "</div>"
+        )
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
