@@ -17,12 +17,8 @@ from firebase_admin import credentials, db
 # CONEXIÓN A FIREBASE PARA LA NUBE (GITHUB + STREAMLIT CLOUD)
 # =========================================================
 if not firebase_admin._apps:
-    # 🌟 MAGIA DE SEGURIDAD: Leemos las credenciales desde los secretos de Streamlit
-    # en lugar de buscar un archivo físico en tu computador.
     firebase_credentials = dict(st.secrets["firebase"])
     cred = credentials.Certificate(firebase_credentials)
-    
-    # ⚠️ ASEGÚRATE DE QUE ESTE SEA TU ENLACE REAL
     firebase_admin.initialize_app(cred, {
         'databaseURL': 'https://bola30-64b83-default-rtdb.firebaseio.com/'
     })
