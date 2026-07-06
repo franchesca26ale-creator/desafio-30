@@ -4,6 +4,7 @@ Un juego de mesa multijugador en la nube con salas por código.
 construido con Streamlit + CSS inyectado + Firebase.
 """
 
+import json
 import random
 import string
 import time
@@ -438,6 +439,23 @@ div[data-testid="stTextInput"] label, div[data-testid="stNumberInput"] label {
 .reveal-card.tie .reveal-badge { background: rgba(255,255,255,0.06); color: var(--ivory); border: 1px solid var(--panel-border-soft); }
 .reveal-card.lost { opacity: 0.62; }
 .reveal-card.lost .reveal-badge { background: rgba(156,43,62,0.14); color: var(--ruby-bright); border: 1px solid var(--ruby); }
+
+/* Resumen económico (Pozo / Comisión / Premios) tras la revelación */
+.resumen-economico-estatico { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 6px 0 18px; }
+.resumen-item-estatico {
+    text-align: center; padding: 10px 16px; border-radius: 12px; background: rgba(255,255,255,0.03);
+    border: 1px solid var(--panel-border-soft); min-width: 120px;
+}
+.resumen-label-estatico { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px; }
+.resumen-valor-estatico { font-size: 15px; font-weight: 800; color: var(--text-main); }
+.resumen-item-estatico.com .resumen-valor-estatico { color: var(--ruby-bright); }
+.resumen-item-estatico.pre .resumen-valor-estatico { color: var(--emerald-bright); }
+
+/* Mensaje personal de cierre (invita a la revancha) */
+.mensaje-final-estatico {
+    text-align: center; font-size: 13.5px; color: var(--gold); letter-spacing: 0.2px;
+    font-weight: 600; margin: 4px 0 10px; padding: 0 10px;
+}
 
 /* Ficha/tag de jugador genérico (roster) */
 .roster-wrap { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 10px 0; }
@@ -995,7 +1013,7 @@ def render_login():
             • <strong>La Tómbola:</strong> Bolitas del 1 al 60 (Muestreo sin reposición).<br>
             • <strong>Tu Turno:</strong> Juega en secreto. Saca una bolita y decide: ¿te plantas o pides otra?<br>
             • <strong>Los Cambios:</strong> Puedes cambiar de bolita máximo 2 veces, pero la anterior se descarta para siempre.<br>
-            • <strong>Premios:</strong> El ganador duplica su apuesta inicial. ¡Si hay empate exacto, recuperas su dinero!
+            • <strong>Premios:</strong> La casa retiene el 50% del pozo total. El ganador se queda con el 50% restante: recupera su apuesta y gana medio B extra. En caso de empate, ese 50% se reparte entre los empatados.
         </div>
     </div>
     """), unsafe_allow_html=True)
@@ -1184,25 +1202,49 @@ def render_playing_phase():
 # =========================================================
 # FASE 3 · RESULTADOS
 # =========================================================
+COMISION_CASA = 0.5  # La casa retiene el 50% del pozo total, según el modelo del proyecto.
+
 def calcular_resultados():
+    """
+    Calcula el resultado económico de la ronda según el modelo matemático real
+    del proyecto (no el "juego justo" de comisión 0%, que solo se usa para la
+    demostración teórica de E[Jugador] = 0):
+
+        Pozo total          = apuesta * JUGADORES_REQUERIDOS   (3B)
+        Comision de la casa = Pozo total * COMISION_CASA        (1.5B con 50%)
+        Pozo de premios     = Pozo total - Comision             (1.5B con 50%)
+        Cada ganador recibe = Pozo de premios / n de ganadores
+
+    Con un solo ganador: recibe 1.5B -> neto +0.5B (recupera su apuesta y gana
+    la mitad extra), tal como esta documentado. En caso de empate, el pozo de
+    premios (ya con la comision descontada) se reparte en partes iguales entre
+    los empatados, asi el 50% de comision se aplica siempre, sin excepciones
+    que rompan la coherencia del modelo.
+    """
     jugadores = {n: p for n, p in st.session_state.players.items() if p.get("final_number") is not None}
     if not jugadores:
-        return {}, []
-        
+        return {}, [], {}
+
     distancias = {n: abs(p["final_number"] - NUMERO_OBJETIVO) for n, p in jugadores.items()}
     distancia_minima = min(distancias.values())
     ganadores = [n for n, d in distancias.items() if d == distancia_minima]
 
     apuesta = st.session_state.bet_amount
+    pozo_total = apuesta * JUGADORES_REQUERIDOS
+    comision_monto = pozo_total * COMISION_CASA
+    pozo_premios = pozo_total - comision_monto
+    recibe_cada_ganador = pozo_premios / len(ganadores)
+
     resultados = {}
     for nombre in jugadores:
-        if len(ganadores) == 1 and nombre == ganadores[0]:
-            estado, recibe, neto = "GANADOR", apuesta * 2, apuesta
-        elif len(ganadores) > 1 and nombre in ganadores:
-            estado, recibe, neto = "EMPATE", apuesta, 0
+        if nombre in ganadores:
+            estado = "GANADOR" if len(ganadores) == 1 else "EMPATE"
+            recibe = recibe_cada_ganador
         else:
-            estado, recibe, neto = "PERDIÓ", 0, -apuesta
-            
+            estado = "PERDIÓ"
+            recibe = 0
+
+        neto = recibe - apuesta
         resultados[nombre] = {
             "estado": estado,
             "recibe": recibe,
@@ -1210,64 +1252,500 @@ def calcular_resultados():
             "distancia": distancias[nombre],
             "numero": jugadores[nombre]["final_number"],
         }
-    return resultados, ganadores
+
+    economia_mesa = {
+        "pozo_total": pozo_total,
+        "comision_monto": comision_monto,
+        "pozo_premios": pozo_premios,
+        "apuesta": apuesta,
+    }
+    return resultados, ganadores, economia_mesa
 
 
-def formatear_monto(monto: int) -> str:
+def formatear_monto(monto) -> str:
     """Formatea un monto con separador de miles y signo (+/-) para mostrar
-    ganancias/pérdidas de forma clara, ej: +2.000 / -2.000 / 0."""
+    ganancias/pérdidas de forma clara, ej: +2.000 / -2.000 / 0.
+    Los repartos de empate pueden dar decimales (ej. pozo de premios / 2),
+    así que si el monto es un entero exacto se muestra sin decimales, y si
+    no, se muestra con un decimal (ej. +1.500,5)."""
+    monto = round(monto, 2)
     signo = "+" if monto > 0 else ("-" if monto < 0 else "")
-    return f"{signo}{abs(monto):,}".replace(",", ".")
+    valor_abs = abs(monto)
+    if valor_abs == int(valor_abs):
+        texto = f"{int(valor_abs):,}".replace(",", ".")
+    else:
+        texto = f"{valor_abs:,.1f}".replace(",", "@").replace(".", ",").replace("@", ".")
+    return f"{signo}{texto}"
+
+
+def render_resumen_economico_estatico(economia):
+    """Fila con el desglose Pozo total / Comisión de la casa / Pozo de premios,
+    para la vista estática (ya revelada) de resultados. Conecta el resultado
+    visual con el modelo matemático del proyecto."""
+    pozo_total = formatear_monto(economia['pozo_total']).replace('+', '')
+    comision = formatear_monto(economia['comision_monto']).replace('+', '')
+    premios = formatear_monto(economia['pozo_premios']).replace('+', '')
+    html = f"""
+    <div class='resumen-economico-estatico'>
+        <div class='resumen-item-estatico'>
+            <div class='resumen-label-estatico'>Pozo total</div>
+            <div class='resumen-valor-estatico'>🪙 {pozo_total}</div>
+        </div>
+        <div class='resumen-item-estatico com'>
+            <div class='resumen-label-estatico'>La casa se lleva (50%)</div>
+            <div class='resumen-valor-estatico'>🪙 {comision}</div>
+        </div>
+        <div class='resumen-item-estatico pre'>
+            <div class='resumen-label-estatico'>Pozo de premios repartido</div>
+            <div class='resumen-valor-estatico'>🪙 {premios}</div>
+        </div>
+    </div>
+    """
+    st.markdown(_html(html), unsafe_allow_html=True)
+
+
+def mensaje_personal_final(mi_neto) -> str:
+    """Línea de cierre dirigida a quien está mirando la pantalla, según si
+    ganó, perdió o empató en esta ronda."""
+    if mi_neto > 0:
+        return f"🏆 ¡Ganaste 🪙 {formatear_monto(mi_neto).replace('+', '')} fichas! La mesa te espera para defender tu suerte."
+    elif mi_neto < 0:
+        return f"😅 Esta ronda la casa se quedó con 🪙 {formatear_monto(abs(mi_neto)).replace('+', '')} tuyos. Es pura probabilidad — ¿vas por la revancha?"
+    else:
+        return "🤝 Recuperaste justo tu apuesta. ¡Vuelve a intentarlo, la próxima puede ser toda tuya!"
+
+
+# Plantilla HTML/CSS/JS de la revelación dramática. Se arma con .replace(...)
+# en vez de f-string para no tener que escapar cada { } de CSS/JS.
+_PLANTILLA_REVELACION = """
+<div id="stage-__UID__" class="reveal-root">
+  <style>
+    * { box-sizing: border-box; }
+    html, body { background: transparent !important; margin:0; padding:0; overflow:hidden; }
+    .reveal-root {
+      position:relative; width:100%; color:#eae4d6;
+      font-family: 'Manrope', Arial, sans-serif;
+    }
+    .sonido-toggle {
+      position:absolute; top:0; right:6px; background:rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.14); color:#eae4d6; border-radius:20px;
+      padding:5px 13px; font-size:12px; cursor:pointer; z-index:70;
+    }
+    .intro-suspenso {
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      height:300px; text-align:center;
+    }
+    .intro-suspenso.oculto { display:none; }
+    .intro-icono {
+      font-size:56px; animation: girar-suspenso 0.9s linear infinite;
+      filter: drop-shadow(0 0 14px rgba(201,162,75,0.55));
+    }
+    @keyframes girar-suspenso { from { transform:rotate(0deg);} to { transform:rotate(360deg);} }
+    .intro-texto {
+      margin-top:18px; font-size:13px; letter-spacing:2px; text-transform:uppercase;
+      color:#96907f; font-weight:700;
+    }
+    .tarjetas-wrap {
+      display:none; gap:20px; justify-content:center; align-items:flex-end; flex-wrap:wrap;
+      padding: 14px 6px 8px; perspective: 1500px; min-height: 300px;
+    }
+    .tarjetas-wrap.visible { display:flex; }
+    .tarjeta-slot { display:flex; flex-direction:column; align-items:center; gap:10px; }
+    .nombre-placa {
+      font-size:13px; letter-spacing:0.5px; font-weight:700; color:#f4efe2;
+      background: rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.09);
+      padding: 5px 14px; border-radius: 20px; white-space:nowrap;
+    }
+    .tag-tu {
+      margin-left:6px; font-size:9px; letter-spacing:1px; color:#161219; background:#c9a24b;
+      padding: 1px 7px; border-radius:10px; font-weight:800;
+    }
+    .flip-card { width:168px; height:246px; position:relative; }
+    .flip-card-inner {
+      position:relative; width:100%; height:100%; transform-style:preserve-3d;
+      transition: transform 0.85s cubic-bezier(.45,.15,.15,1.15);
+    }
+    .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+    .flip-face {
+      position:absolute; inset:0; backface-visibility:hidden; border-radius:16px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; padding:12px;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.5);
+    }
+    .flip-front { background: linear-gradient(160deg,#1c2b23,#0a100c); border:2px solid #8a6f2c; }
+    .mystery-mark { font-size:48px; color:#c9a24b; opacity:.85; animation: mystery-pulse 1.6s ease-in-out infinite; }
+    @keyframes mystery-pulse { 0%,100%{opacity:.55;} 50%{opacity:1;} }
+    .front-caption {
+      margin-top:10px; font-size:10px; letter-spacing:0.6px; color:#96907f;
+      text-transform:uppercase; text-align:center;
+    }
+    .flip-back {
+      background:#131b16; border:2px solid rgba(255,255,255,0.09); transform: rotateY(180deg); text-align:center;
+    }
+    .flip-card.es-ganador .flip-back {
+      border-color:#c9a24b; box-shadow: 0 0 40px rgba(201,162,75,0.45), 0 14px 30px rgba(0,0,0,0.5);
+    }
+    .flip-card.es-perdedor .flip-back { opacity:0.7; }
+    .back-numero { font-family: Georgia, serif; font-size:38px; font-weight:800; color:#f2d788; }
+    .back-distancia {
+      font-size:10px; color:#96907f; text-transform:uppercase; letter-spacing:.4px; margin:6px 0 10px;
+    }
+    .back-monto { font-size:15px; font-weight:800; }
+    .monto-pos { color:#38b47f; }
+    .monto-neg { color:#d1546a; }
+    .monto-neutro { color:#96907f; }
+    .back-badge {
+      margin-top:10px; font-size:10px; padding:4px 12px; border-radius:16px; font-weight:700;
+      background: rgba(255,255,255,0.06);
+    }
+    .celebracion-overlay { position:fixed; inset:0; pointer-events:none; z-index:50; overflow:hidden; }
+    .confeti { position:absolute; top:-12px; width:9px; height:14px; border-radius:2px; animation: caer 2.6s ease-in forwards; }
+    @keyframes caer {
+      0% { transform:translateY(0) rotate(0deg); opacity:1; }
+      100% { transform:translateY(105vh) rotate(420deg); opacity:0; }
+    }
+    .rayos {
+      position:absolute; left:50%; top:44%; width:900px; height:900px; margin-left:-450px; margin-top:-450px;
+      background: conic-gradient(from 0deg, rgba(201,162,75,0.16) 0deg 8deg, transparent 8deg 20deg);
+      animation: girar-rayos 7s linear infinite; opacity:0; transition: opacity .6s ease;
+    }
+    .rayos.activo { opacity:1; }
+    @keyframes girar-rayos { from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
+    .banner-central {
+      position:fixed; left:50%; top:14%; transform: translate(-50%,-20px) scale(0.6); opacity:0;
+      font-family: Georgia, serif; font-weight:800; font-size:32px; color:#f2d788; text-align:center;
+      text-shadow: 0 0 26px rgba(201,162,75,0.7); z-index:60; letter-spacing:1px; white-space:nowrap;
+    }
+    .banner-central.mostrar { animation: banner-in .7s cubic-bezier(.34,1.56,.64,1) forwards; }
+    @keyframes banner-in {
+      0% { opacity:0; transform:translate(-50%,-20px) scale(0.5); }
+      60% { opacity:1; transform:translate(-50%,6px) scale(1.12); }
+      100% { opacity:1; transform:translate(-50%,0) scale(1); }
+    }
+    .stage-shake { animation: shake .5s ease; }
+    @keyframes shake {
+      0%,100% { transform:translateX(0); } 20% { transform:translateX(-6px); }
+      40% { transform:translateX(6px); } 60% { transform:translateX(-4px); } 80% { transform:translateX(4px); }
+    }
+    .resumen-economico {
+      display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:20px; opacity:0;
+      transition: opacity .7s ease;
+    }
+    .resumen-economico.visible { opacity:1; }
+    .resumen-item {
+      text-align:center; padding:10px 16px; border-radius:12px; background: rgba(255,255,255,0.03);
+      border:1px solid rgba(255,255,255,0.08); min-width:120px;
+    }
+    .resumen-label { font-size:9px; letter-spacing:1px; text-transform:uppercase; color:#96907f; margin-bottom:4px; }
+    .resumen-valor { font-size:15px; font-weight:800; color:#f4efe2; }
+    .resumen-item.comision .resumen-valor { color:#d1546a; }
+    .resumen-item.premios .resumen-valor { color:#38b47f; }
+    .mensaje-final {
+      text-align:center; margin-top:16px; font-size:13.5px; color:#c9a24b; opacity:0;
+      transition: opacity .7s ease; letter-spacing:.2px; font-weight:600; padding:0 10px;
+    }
+    .mensaje-final.visible { opacity:1; }
+  </style>
+
+  <button class="sonido-toggle" id="btn-sonido-__UID__">🔊 Sonido</button>
+
+  <div class="intro-suspenso" id="intro-__UID__">
+    <div class="intro-icono">🎲</div>
+    <div class="intro-texto">Calculando quién se acercó más al 30...</div>
+  </div>
+
+  <div class="tarjetas-wrap" id="tarjetas-__UID__">
+    __TARJETAS__
+  </div>
+
+  <div class="resumen-economico" id="resumen-__UID__">
+    <div class="resumen-item">
+      <div class="resumen-label">Pozo total</div>
+      <div class="resumen-valor">🪙 __POZO_TOTAL_FMT__</div>
+    </div>
+    <div class="resumen-item comision">
+      <div class="resumen-label">La casa se lleva</div>
+      <div class="resumen-valor">🪙 __COMISION_FMT__</div>
+    </div>
+    <div class="resumen-item premios">
+      <div class="resumen-label">Pozo de premios</div>
+      <div class="resumen-valor">🪙 __PREMIOS_FMT__</div>
+    </div>
+  </div>
+
+  <div class="mensaje-final" id="mensaje-__UID__">__MENSAJE_FINAL__</div>
+
+  <div class="rayos" id="rayos-__UID__"></div>
+  <div class="celebracion-overlay" id="confeti-__UID__"></div>
+  <div class="banner-central" id="banner-__UID__"></div>
+
+  <script>
+  (function(){
+    const idsPerdedores = __IDS_PERDEDORES__;
+    const idsGanadores = __IDS_GANADORES__;
+    const esEmpate = __ES_EMPATE__;
+
+    let audioCtx = null;
+    let sonidoOn = true;
+    const btnSonido = document.getElementById("btn-sonido-__UID__");
+    btnSonido.addEventListener("click", function(){
+      sonidoOn = !sonidoOn;
+      btnSonido.textContent = sonidoOn ? "🔊 Sonido" : "🔇 Sonido";
+      if (sonidoOn) asegurarAudio();
+    });
+
+    function asegurarAudio(){
+      try {
+        if (!audioCtx) { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+        if (audioCtx.state === "suspended") { audioCtx.resume(); }
+      } catch (e) {}
+    }
+    document.addEventListener("click", asegurarAudio);
+    document.addEventListener("touchstart", asegurarAudio);
+    asegurarAudio();
+
+    function tono(freq, dur, tipo, vol, delay){
+      if (!sonidoOn) return;
+      try {
+        asegurarAudio();
+        const t0 = audioCtx.currentTime + (delay || 0);
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = tipo || "sine";
+        osc.frequency.setValueAtTime(freq, t0);
+        gain.gain.setValueAtTime(0, t0);
+        gain.gain.linearRampToValueAtTime(vol || 0.15, t0 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(t0);
+        osc.stop(t0 + dur + 0.05);
+      } catch (e) {}
+    }
+    function golpe(delay){ tono(170, 0.09, "square", 0.16, delay); }
+    function flipSonido(delay){
+      tono(560, 0.11, "triangle", 0.13, delay);
+      tono(840, 0.09, "triangle", 0.09, (delay||0) + 0.04);
+    }
+    function fanfarria(delay){
+      const notas = [523.25, 659.25, 783.99, 1046.5];
+      notas.forEach(function(f, i){ tono(f, 0.5, "sawtooth", 0.15, (delay||0) + i*0.09); });
+      tono(1046.5, 1.0, "sine", 0.18, (delay||0) + 0.4);
+    }
+
+    function formatoCLP(n){
+      const num = Math.round(n * 10) / 10;
+      try { return num.toLocaleString("es-CL"); } catch(e) { return String(num); }
+    }
+
+    function crearConfeti(cantidad){
+      const cont = document.getElementById("confeti-__UID__");
+      const colores = ["#c9a24b", "#f2d788", "#d1546a", "#38b47f", "#f4efe2"];
+      for (let i=0; i<cantidad; i++){
+        const p = document.createElement("div");
+        p.className = "confeti";
+        p.style.left = (Math.random()*100) + "%";
+        p.style.background = colores[Math.floor(Math.random()*colores.length)];
+        p.style.animationDelay = (Math.random()*0.6) + "s";
+        p.style.transform = "rotate(" + Math.floor(Math.random()*360) + "deg)";
+        cont.appendChild(p);
+        setTimeout(function(id_p){ return function(){ p.remove(); }; }(p), 3400);
+      }
+    }
+
+    function voltear(id, sonido){
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add("flipped");
+      const montoEl = el.querySelector(".back-monto");
+      if (montoEl){
+        const val = parseFloat(montoEl.getAttribute("data-monto"));
+        const signo = val > 0 ? "+" : (val < 0 ? "-" : "");
+        montoEl.textContent = "🪙 " + signo + formatoCLP(Math.abs(val));
+      }
+      if (sonido) flipSonido();
+    }
+
+    function celebrar(){
+      const stage = document.getElementById("stage-__UID__");
+      const rayos = document.getElementById("rayos-__UID__");
+      const banner = document.getElementById("banner-__UID__");
+      rayos.classList.add("activo");
+      stage.classList.add("stage-shake");
+      crearConfeti(70);
+      banner.textContent = esEmpate ? "🤝 ¡EMPATE!" : "🏆 ¡GANADOR!";
+      banner.classList.add("mostrar");
+      fanfarria(0.05);
+      setTimeout(function(){ stage.classList.remove("stage-shake"); }, 550);
+    }
+
+    function mostrarResumenFinal(){
+      document.getElementById("resumen-__UID__").classList.add("visible");
+      document.getElementById("mensaje-__UID__").classList.add("visible");
+    }
+
+    let ticks = 0;
+    function tick(){
+      golpe(0);
+      ticks++;
+      if (ticks < 9){
+        setTimeout(tick, Math.max(70, 260 - ticks*22));
+      }
+    }
+    tick();
+
+    setTimeout(function(){
+      document.getElementById("intro-__UID__").classList.add("oculto");
+      document.getElementById("tarjetas-__UID__").classList.add("visible");
+      ejecutarRevelacion();
+    }, 1900);
+
+    function ejecutarRevelacion(){
+      let demora = 250;
+      idsPerdedores.forEach(function(id){
+        setTimeout(function(){ voltear(id, true); }, demora);
+        demora += 950;
+      });
+      setTimeout(function(){
+        idsGanadores.forEach(function(id){ voltear(id, false); });
+        celebrar();
+      }, demora + 200);
+      setTimeout(mostrarResumenFinal, demora + 1700);
+    }
+  })();
+  </script>
+</div>
+"""
+
+
+def render_revelacion_dramatica(resultados, ganadores, economia, mi_nombre):
+    """
+    Revelación de resultados estilo 'reality show' de casino: cada jugador es
+    una carta boca abajo. Se voltean en orden de peor a mejor puesto (mayor a
+    menor distancia), generando suspenso creciente, hasta terminar en el o los
+    ganadores con una celebración grande (confeti + rayos dorados + fanfarria).
+    El sonido se sintetiza en vivo con Web Audio API (sin archivos externos).
+
+    Se llama una sola vez por ronda: quien invoca esta función marca
+    'anim_shown_results_reveal' en session_state para no repetirla en cada
+    auto-refresco de la mesa; ese flag se limpia solo en iniciar_ronda().
+    """
+    orden_desc = sorted(resultados.items(), key=lambda kv: kv[1]["distancia"], reverse=True)
+
+    tarjetas = []
+    for i, (nombre, r) in enumerate(orden_desc):
+        es_ganador = nombre in ganadores
+        clase_extra = "es-ganador" if es_ganador else "es-perdedor"
+        etiqueta_mio = "<span class='tag-tu'>TÚ</span>" if nombre == mi_nombre else ""
+        badge_txt = (
+            "🏆 GANADOR" if r["estado"] == "GANADOR"
+            else "🤝 EMPATE" if r["estado"] == "EMPATE"
+            else "❌ PIERDE"
+        )
+        clase_monto = "monto-pos" if r["neto"] > 0 else ("monto-neg" if r["neto"] < 0 else "monto-neutro")
+        tarjetas.append(f"""
+        <div class="tarjeta-slot">
+          <div class="nombre-placa">{nombre}{etiqueta_mio}</div>
+          <div class="flip-card {clase_extra}" id="card-{i}">
+            <div class="flip-card-inner">
+              <div class="flip-face flip-front">
+                <div class="mystery-mark">🂠</div>
+                <div class="front-caption">¿Se acercó al 30?</div>
+              </div>
+              <div class="flip-face flip-back">
+                <div class="back-numero">{r['numero']}</div>
+                <div class="back-distancia">Distancia a 30 → {r['distancia']}</div>
+                <div class="back-monto {clase_monto}" data-monto="{r['neto']}">🪙 --</div>
+                <div class="back-badge">{badge_txt}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        """)
+
+    ids_perdedores = [f"card-{i}" for i, (nombre, _r) in enumerate(orden_desc) if nombre not in ganadores]
+    ids_ganadores = [f"card-{i}" for i, (nombre, _r) in enumerate(orden_desc) if nombre in ganadores]
+    mi_neto = resultados.get(mi_nombre, {}).get("neto", 0)
+    uid = f"reveal_{random.randint(0, 10_000_000)}"
+
+    html_code = (
+        _PLANTILLA_REVELACION
+        .replace("__UID__", uid)
+        .replace("__TARJETAS__", "".join(tarjetas))
+        .replace("__IDS_PERDEDORES__", json.dumps(ids_perdedores))
+        .replace("__IDS_GANADORES__", json.dumps(ids_ganadores))
+        .replace("__ES_EMPATE__", "true" if len(ganadores) > 1 else "false")
+        .replace("__POZO_TOTAL_FMT__", formatear_monto(economia["pozo_total"]).replace("+", ""))
+        .replace("__COMISION_FMT__", formatear_monto(economia["comision_monto"]).replace("+", ""))
+        .replace("__PREMIOS_FMT__", formatear_monto(economia["pozo_premios"]).replace("+", ""))
+        .replace("__MENSAJE_FINAL__", mensaje_personal_final(mi_neto))
+    )
+    components.html(html_code, height=660, scrolling=False)
 
 
 def render_results_phase():
     sincronizar_datos()
     render_header("🏆 Resultados Finales")
-    
-    resultados, ganadores = calcular_resultados()
+
+    resultados, ganadores, economia = calcular_resultados()
     if not resultados:
         st.warning("Esperando resultados... la mesa se actualizará sola en unos segundos.")
         return
 
-    if len(ganadores) == 1:
-        st.markdown(f"<div class='results-banner'>🏆 ¡{ganadores[0]} se lleva la mesa! 🏆</div>", unsafe_allow_html=True)
-        render_confetti()
-    else:
-        nombres_empate = " y ".join(ganadores)
-        st.markdown(f"<div class='results-banner tie-banner'>🤝 ¡Empate entre {nombres_empate}! Recuperan apuesta.</div>", unsafe_allow_html=True)
-
-    # ======= CUÁNTO GANASTE (O PERDISTE) TÚ =======
     usuario = st.session_state.current_user
     mi_nombre = usuario["name"] if usuario else None
-    if mi_nombre in resultados:
-        mi_neto = resultados[mi_nombre]["neto"]
-        if mi_neto > 0:
-            clase_mio, texto_mio = "mio-ganaste", f"🏆 ¡Ganaste! Te llevas <strong>🪙 {formatear_monto(mi_neto)}</strong> fichas"
-        elif mi_neto < 0:
-            clase_mio, texto_mio = "mio-perdiste", f"❌ Perdiste <strong>🪙 {formatear_monto(mi_neto)}</strong> fichas"
+
+    ya_revelado = st.session_state.get("anim_shown_results_reveal", False)
+
+    if not ya_revelado:
+        # Primera vez que esta pantalla se ve en esta ronda: el gran show.
+        st.session_state["anim_shown_results_reveal"] = True
+        render_revelacion_dramatica(resultados, ganadores, economia, mi_nombre)
+    else:
+        # Refrescos posteriores (cada 2s): versión estática, sin repetir la
+        # animación completa una y otra vez.
+        if len(ganadores) == 1:
+            st.markdown(f"<div class='results-banner'>🏆 ¡{ganadores[0]} se lleva la mesa! 🏆</div>", unsafe_allow_html=True)
+            render_confetti()
         else:
-            clase_mio, texto_mio = "mio-empate", "🤝 Empate — recuperas tu apuesta, no ganas ni pierdes fichas"
-        st.markdown(f"<div class='mi-resultado {clase_mio}'>{texto_mio}</div>", unsafe_allow_html=True)
+            nombres_empate = " y ".join(ganadores)
+            st.markdown(f"<div class='results-banner tie-banner'>🤝 ¡Empate entre {nombres_empate}!</div>", unsafe_allow_html=True)
 
-    orden = sorted(resultados.items(), key=lambda kv: kv[1]["distancia"])
-    badges = {"GANADOR": "🏆 Ganador", "EMPATE": "🤝 Empate", "PERDIÓ": "❌ Pierde"}
-    clases = {"GANADOR": "winner", "EMPATE": "tie", "PERDIÓ": "lost"}
+        if mi_nombre in resultados:
+            mi_neto = resultados[mi_nombre]["neto"]
+            if mi_neto > 0:
+                clase_mio, texto_mio = "mio-ganaste", f"🏆 ¡Ganaste! Te llevas <strong>🪙 {formatear_monto(mi_neto)}</strong> fichas"
+            elif mi_neto < 0:
+                clase_mio, texto_mio = "mio-perdiste", f"❌ Perdiste <strong>🪙 {formatear_monto(mi_neto)}</strong> fichas"
+            else:
+                clase_mio, texto_mio = "mio-empate", "🤝 Empate — recuperas tu apuesta, no ganas ni pierdes fichas"
+            st.markdown(f"<div class='mi-resultado {clase_mio}'>{texto_mio}</div>", unsafe_allow_html=True)
 
-    html = "<div class='reveal-grid'>"
-    for i, (nombre, r) in enumerate(orden):
-        neto = r["neto"]
-        clase_monto = "amount-positive" if neto > 0 else ("amount-negative" if neto < 0 else "amount-neutral")
-        html += (
-            f"<div class='reveal-card {clases[r['estado']]}' style='animation-delay:{i * 0.15}s'>"
-            f"<div class='reveal-name'>{nombre}</div>"
-            f"<div class='reveal-number'>{r['numero']}</div>"
-            f"<div class='reveal-distance'>Distancia a 30 → {r['distancia']}</div>"
-            f"<div class='reveal-amount {clase_monto}'>🪙 {formatear_monto(neto)}</div>"
-            f"<div class='reveal-badge'>{badges[r['estado']]}</div>"
-            "</div>"
-        )
-    html += "</div>"
-    st.markdown(html, unsafe_allow_html=True)
+        orden = sorted(resultados.items(), key=lambda kv: kv[1]["distancia"])
+        badges = {"GANADOR": "🏆 Ganador", "EMPATE": "🤝 Empate", "PERDIÓ": "❌ Pierde"}
+        clases = {"GANADOR": "winner", "EMPATE": "tie", "PERDIÓ": "lost"}
+
+        html = "<div class='reveal-grid'>"
+        for i, (nombre, r) in enumerate(orden):
+            neto = r["neto"]
+            clase_monto = "amount-positive" if neto > 0 else ("amount-negative" if neto < 0 else "amount-neutral")
+            html += (
+                f"<div class='reveal-card {clases[r['estado']]}' style='animation-delay:{i * 0.15}s'>"
+                f"<div class='reveal-name'>{nombre}</div>"
+                f"<div class='reveal-number'>{r['numero']}</div>"
+                f"<div class='reveal-distance'>Distancia a 30 → {r['distancia']}</div>"
+                f"<div class='reveal-amount {clase_monto}'>🪙 {formatear_monto(neto)}</div>"
+                f"<div class='reveal-badge'>{badges[r['estado']]}</div>"
+                "</div>"
+            )
+        html += "</div>"
+        st.markdown(html, unsafe_allow_html=True)
+
+        render_resumen_economico_estatico(economia)
+
+        if mi_nombre in resultados:
+            st.markdown(
+                f"<div class='mensaje-final-estatico'>{mensaje_personal_final(resultados[mi_nombre]['neto'])}</div>",
+                unsafe_allow_html=True,
+            )
 
     st.divider()
     if usuario["is_host"]:
